@@ -8,7 +8,7 @@ import streamlit.components.v1 as components
 # 1. إعداد الصفحة
 st.set_page_config(page_title="نظام IDA للمستحقات", layout="wide", page_icon="💰")
 
-# 2. تصميم CSS (الشكل الفخم المعتمد بدون عناوين جانبية)
+# 2. تصميم CSS (الشكل الفخم المعتمد)
 st.markdown("""
     <style>
     @import url('https://fonts.googleapis.com/css2?family=Cairo:wght@400;600;800&display=swap');
@@ -30,7 +30,9 @@ st.markdown("""
     .custom-table th { background-color: #003366; color: white; padding: 12px; }
     .custom-table td { padding: 10px; border: 1px solid #ddd; font-weight: 600; }
 
-    /* إعدادات الطباعة */
+    /* تحسين الموبايل: منع ظهور نصوص غريبة في الجنب */
+    [data-testid="stSidebarNav"] { padding-top: 2rem; }
+    
     @media print {
         section[data-testid="stSidebar"], .stDownloadButton, button, iframe, header, [data-testid="stHeader"], .stTextInput, .stSelectbox, .stHeader { display: none !important; }
         .main, .block-container { background-color: white !important; padding: 0 !important; margin: 0 !important; }
@@ -42,7 +44,7 @@ st.markdown("""
 
 # 3. محرك البيانات
 @st.cache_data
-def load_data_v45():
+def load_data_v46():
     f = 'MAR2026.csv'
     if not os.path.exists(f): return None, None
     try:
@@ -50,18 +52,23 @@ def load_data_v45():
         df.columns = [c.strip() for c in df.columns]
         p = {'name': ['name_employee', 'اسم'], 'code': ['employee_code', 'كود'], 'date': ['التاريخ', 'date'], 'mang': ['mangment', 'الإدارة'], 'type': ['نوع الصرف'], 'ent': ['أجمالى الاستحقاقات'], 'net': ['الصافي'], 'nat': ['national_id'], 'ded': ['الأجمالى الاستقطاعات'], 'tax': ['ضريبة'], 'stamp': ['دمغة'], 'desc': ['وصف']}
         cols = {k: next((c for c in df.columns if any(w.lower() in c.lower() for w in p[k])), None) for k in p}
+        
         if cols['name']:
             df['Search_Key'] = df[cols['name']].astype(str).str.replace(r'[أإآ]', 'ا', regex=True).str.replace('ى', 'ي').str.replace('ة', 'ه').str.strip()
         
-        for k in ['ent', 'net', 'ded', 'tax', 'stamp']:
-            if cols[k]: df[cols[k]] = pd.to_numeric(df[cols[k]].astype(str).str.replace(',', ''), errors='coerce').fillna(0)
+        # تنظيف المبالغ
+        money_cols = ['ent', 'net', 'ded', 'tax', 'stamp']
+        for k in money_cols:
+            if cols[k]:
+                df[cols[k]] = pd.to_numeric(df[cols[k]].astype(str).str.replace(',', ''), errors='coerce').fillna(0)
         return df, cols
-    except: return None, None
+    except:
+        return None, None
 
-df_raw, cols = load_data_v45()
+df_raw, cols = load_data_v46()
 
 if df_raw is not None:
-    # القائمة الجانبية (محذوف منها العنوان المزعج)
+    # القائمة الجانبية (بدون أي نصوص ثابتة لتجنب مشكلة الطول)
     with st.sidebar:
         if cols['date']:
             available_months = sorted(df_raw[cols['date']].unique(), reverse=True)
@@ -69,7 +76,7 @@ if df_raw is not None:
             df = df_raw[df_raw[cols['date']] == target_month]
         else:
             df = df_raw
-            target_month = ""
+            target_month = "غير محدد"
         
         st.markdown("---")
         menu = st.radio("📌 التنقل:", ["🔍 استعلام الموظفين", "📊 إحصائيات عامة", "📥 تصدير التقارير"])
@@ -78,8 +85,10 @@ if df_raw is not None:
     if menu == "🔍 استعلام الموظفين":
         st.title(f"🔍 مستحقات شهر {target_month}")
         c_s1, c_s2 = st.columns([1, 2])
-        with c_s1: mode = st.selectbox("بحث بـ:", ["الاسم", "الكود"])
-        with c_search2: q = st.text_input("✍️ ابحث هنا:") # تم التأكد من عمل الخانة
+        with c_s1: 
+            mode = st.selectbox("بحث بـ:", ["الاسم", "الكود"])
+        with c_s2: 
+            q = st.text_input("✍️ ابحث هنا:") # تم تصحيح اسم المتغير هنا
         
         if q:
             if mode == "الاسم":
@@ -92,7 +101,10 @@ if df_raw is not None:
                 for name, group in res.groupby(cols['name']):
                     st.markdown(f'<div class="personal-card"><h1>{name}</h1><p>🆔 كود: {group.iloc[0][cols["code"]]} | 🏢 {group.iloc[0][cols["mang"]]}</p></div>', unsafe_allow_html=True)
                     m1, m2, m3, m4 = st.columns(4)
-                    s_ent, s_tax, s_ded, s_net = group[cols['ent']].sum(), (group[cols['tax']].sum()+group[cols['stamp']].sum()), group[cols['ded']].sum(), group[cols['net']].sum()
+                    s_ent = group[cols['ent']].sum()
+                    s_tax = group[cols['tax']].sum() + group[cols['stamp']].sum()
+                    s_ded = group[cols['ded']].sum()
+                    s_net = group[cols['net']].sum()
                     
                     m1.markdown(f'<div class="stat-card" style="background:#28a745;"><span class="stat-label">إجمالي المستحق</span><span class="stat-value">{s_ent:,.2f}</span></div>', unsafe_allow_html=True)
                     m2.markdown(f'<div class="stat-card" style="background:#ffc107;"><span class="stat-label" style="color:black">ضرائب ودمغة</span><span class="stat-value" style="color:black">{s_tax:,.2f}</span></div>', unsafe_allow_html=True)
@@ -102,7 +114,8 @@ if df_raw is not None:
                     st.markdown(f'<div class="custom-table-container">{group[[cols["type"], cols["ent"], cols["net"]]].to_html(index=False, classes="custom-table", escape=False)}</div>', unsafe_allow_html=True)
                     if st.button(f"🖨️ طباعة {name}"):
                         components.html("<script>window.parent.print();</script>")
-            else: st.warning("🔍 لا توجد نتائج لهذا الشهر.")
+            else: 
+                st.warning("🔍 لا توجد نتائج.")
 
     # 2. الإحصائيات
     elif menu == "📊 إحصائيات عامة":
@@ -115,9 +128,12 @@ if df_raw is not None:
     elif menu == "📥 تصدير التقارير":
         st.title(f"📥 تصدير بيانات {target_month}")
         buffer = io.BytesIO()
-        with pd.ExcelWriter(buffer, engine='xlsxwriter') as writer:
-            df.drop(columns=['Search_Key']).to_excel(writer, index=False)
-        st.download_button("💾 تحميل Excel", buffer.getvalue(), f"Report_{target_month}.xlsx")
+        try:
+            with pd.ExcelWriter(buffer, engine='xlsxwriter') as writer:
+                df.drop(columns=['Search_Key']).to_excel(writer, index=False)
+            st.download_button("💾 تحميل Excel", buffer.getvalue(), f"IDA_{target_month}.xlsx")
+        except:
+            st.error("خطأ: تأكد من وجود xlsxwriter في ملف requirements.txt")
 
 else:
     st.error("❌ ملف MAR2026.csv غير موجود.")
