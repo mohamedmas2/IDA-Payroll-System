@@ -5,48 +5,47 @@ import os
 import io
 import streamlit.components.v1 as components
 
-# 1. إعداد الصفحة (استخدام اللوجو كأيقونة للمتصفح أيضاً)
+# 1. إعداد الصفحة (استخدام اللوجو الخاص بك كأيقونة للمتصفح)
 st.set_page_config(page_title="نظام IDA للمستحقات", layout="wide", page_icon="IDA_logo_(1).ico")
 
-# 2. تصميم CSS (حماية كاملة من الكلام الطولي وتنسيق شاشة الاستعلام)
+# 2. تصميم CSS (حماية شاشة الاستعلام ومنع الكلام الطولي)
 st.markdown("""
     <style>
     @import url('https://fonts.googleapis.com/css2?family=Cairo:wght@400;600;800&display=swap');
     html, body, [class*="css"] { font-family: 'Cairo', sans-serif !important; direction: rtl; text-align: center; }
     
-    /* منع كسر الأسطر في القائمة الجانبية والعناوين لمنع الكلام الطولي */
-    [data-testid="stSidebar"] * {
-        white-space: nowrap !important;
-        overflow: hidden;
-        text-overflow: ellipsis;
-    }
+    /* منع الكلام الطولي في الموبايل */
+    [data-testid="stSidebar"] { min-width: 250px !important; }
+    [data-testid="stSidebar"] * { white-space: nowrap !important; }
 
-    .app-main-title { color: #003366; font-size: 30px; font-weight: 800; margin-bottom: 25px; text-align: center; border-bottom: 3px solid #003366; display: inline-block; padding-bottom: 10px; }
+    .app-main-title { color: #003366; font-size: 32px; font-weight: 800; margin-bottom: 20px; border-bottom: 3px solid #003366; display: inline-block; padding-bottom: 10px; }
 
+    /* شاشة الاستعلام الفخمة */
     .personal-card { background: linear-gradient(135deg, #003366 0%, #005bb7 100%); color: white; padding: 25px; border-radius: 20px; margin-bottom: 25px; border: 2px solid #ffffff; width: 100%; box-shadow: 0 10px 30px rgba(0,0,0,0.2); }
-    .personal-card h1 { font-size: 35px !important; font-weight: 800; color: white !important; margin: 0; }
+    .personal-card h1 { font-size: 38px !important; font-weight: 800; color: white !important; margin: 0; }
     
     .stat-card { padding: 20px; border-radius: 15px; color: white !important; text-align: center; margin-bottom: 15px; box-shadow: 0 4px 10px rgba(0,0,0,0.1); }
-    .stat-value { font-size: 28px !important; font-weight: 800; display: block; color: white !important; }
-    .stat-label { color: white !important; font-size: 16px; font-weight: 600; }
+    .stat-value { font-size: 30px !important; font-weight: 800; display: block; }
+    .stat-label { font-size: 17px; font-weight: 600; }
 
+    /* الجدول الواضح بدون أرقام صفوف */
     .custom-table-container { width: 100%; overflow-x: auto; border-radius: 15px; background: white; padding: 10px; box-shadow: 0 5px 15px rgba(0,0,0,0.05); }
-    .custom-table { width: 100%; border-collapse: collapse; text-align: center; font-size: 18px !important; }
+    .custom-table { width: 100%; border-collapse: collapse; text-align: center; font-size: 20px !important; }
     .custom-table th { background-color: #003366; color: white; padding: 15px; }
-    .custom-table td { padding: 12px; border: 1px solid #ddd; font-weight: 600; color: #333; }
+    .custom-table td { padding: 15px; border: 1px solid #ddd; font-weight: 700; color: #333; }
 
     @media print {
-        section[data-testid="stSidebar"], .stDownloadButton, button, iframe, header, [data-testid="stHeader"], .stTextInput, .stSelectbox, .stHeader { display: none !important; }
-        .main, .block-container { background-color: white !important; padding: 0 !important; margin: 0 !important; }
-        .personal-card { background: transparent !important; color: #003366 !important; border: none !important; }
+        section[data-testid="stSidebar"], .stDownloadButton, button, header { display: none !important; }
+        .main, .block-container { background-color: white !important; padding: 0 !important; }
+        .personal-card { background: transparent !important; color: #003366 !important; border: 1px solid #003366 !important; }
         .personal-card h1 { color: #003366 !important; font-size: 32px !important; }
     }
     </style>
     """, unsafe_allow_html=True)
 
-# 3. محرك البيانات
+# 3. محرك البيانات (تم إصلاح اسم الدالة ليتوافق مع الاستدعاء)
 @st.cache_data(ttl=60)
-def load_v55_data():
+def load_v56_data():
     f = 'MAR2026.csv'
     if not os.path.exists(f): return None, None
     try:
@@ -61,14 +60,15 @@ def load_v55_data():
         return df, cols
     except: return None, None
 
-df_raw, cols = load_v54_data()
+# مناداة المحرك (إصلاح الخطأ الأحمر)
+df_raw, cols = load_v56_data()
 
 if df_raw is not None:
     st.markdown("<div class='app-main-title'>💰 IDA SYSTEM</div>", unsafe_allow_html=True)
     
     with st.sidebar:
-        # استخدام اللوجو اللي أنت رفعته بالاسم الجديد
-        st.image("IDA_logo_(1).ico", width=150) 
+        # عرض اللوجو الخاص بك
+        st.image("IDA_logo_(1).ico", width=150)
         st.markdown("---")
         if cols['date']:
             months = ["الكل"] + sorted(df_raw[cols['date']].unique(), reverse=True)
@@ -77,9 +77,11 @@ if df_raw is not None:
         else:
             target_month = "الكل"
             df = df_raw
-        menu = st.radio("📂 القائمة:", ["🔍 استعلام", "📊 إحصائيات", "📥 تصدير"])
+        menu = st.radio("📂 القائمة الرئيسية:", ["🔍 استعلام الموظفين", "📊 التحليلات المالية", "📥 تحميل التقارير"])
 
-    if menu == "🔍 استعلام":
+    # --- شاشة الاستعلام (المحمية) ---
+    if menu == "🔍 استعلام الموظفين":
+        st.title(f"🔍 فترة: {target_month}")
         c1, c2 = st.columns([1, 2])
         with c1: mode = st.selectbox("بحث بـ:", ["👤 الاسم", "🆔 الكود"])
         with c2: q = st.text_input("✍️ ابحث هنا:")
@@ -109,7 +111,7 @@ if df_raw is not None:
                         components.html("<script>window.parent.print();</script>")
             else: st.warning("🔍 لا توجد نتائج.")
 
-    elif menu == "📊 إحصائيات":
+    elif menu == "📊 التحليلات المالية":
         st.subheader(f"📊 ملخص {target_month}")
         k1, k2, k3 = st.columns(3)
         k1.metric("الموظفين", f"{df['Search_Key'].nunique():,}")
@@ -117,7 +119,7 @@ if df_raw is not None:
         k3.metric("الصافي", f"{df[cols['net']].sum():,.0f}")
         st.bar_chart(df.groupby(cols['mang'])[cols['net']].sum())
 
-    elif menu == "📥 تصدير":
+    elif menu == "📥 تحميل التقارير":
         buffer = io.BytesIO()
         with pd.ExcelWriter(buffer, engine='xlsxwriter') as writer:
             df.drop(columns=['Search_Key']).to_excel(writer, index=False)
