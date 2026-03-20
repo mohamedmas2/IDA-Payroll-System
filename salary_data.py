@@ -32,68 +32,68 @@ st.set_page_config(page_title="نظام IDA للمستحقات", layout="wide", 
 if "logged_in" not in st.session_state:
     st.session_state["logged_in"] = False
 
-# --- 3. CSS "الفرد الكامل" (ممنوع التوسيط) ---
+# --- 3. CSS "التكسير" (لفك أي عمود طولي محشور) ---
 st.markdown("""
     <style>
     @import url('https://fonts.googleapis.com/css2?family=Cairo:wght@400;600;800&display=swap');
     
-    /* 1. فرد محتوى الصفحة بالكامل ومنع التوسيط */
+    /* 1. إجبار الحاوية الرئيسية على أخذ عرض الشاشة بالكامل */
     .main .block-container {
         max-width: 100% !important;
-        padding-left: 1rem !important;
-        padding-right: 1rem !important;
-        padding-top: 1rem !important;
-        direction: rtl !important;
-        margin-left: 0 !important;
+        width: 100% !important;
+        padding: 10px !important;
+        margin: 0 !important;
+    }
+
+    /* 2. إلغاء أي توسيط إجباري للعناصر */
+    [data-testid="stVerticalBlock"] {
+        width: 100% !important;
+        gap: 10px !important;
+    }
+
+    html, body, [class*="css"] { 
+        font-family: 'Cairo', sans-serif !important; 
+        direction: rtl !important; 
+        text-align: right !important; 
+    }
+
+    /* 3. اللوجو (منع التوسط في الموبايل) */
+    [data-testid="stImage"] > img {
         margin-right: 0 !important;
+        margin-left: auto !important;
+        display: block !important;
     }
 
-    /* 2. إجبار كل العناصر على المحاذاة لليمين */
-    html, body, [data-testid="stVerticalBlock"] > div {
-        direction: rtl !important;
-        text-align: right !important;
-        align-items: flex-start !important;
-    }
-
-    /* 3. شبكة الكروت (تنسيق مفرود) */
+    /* 4. الكروت (فرد كامل) */
     .stats-grid { 
         display: grid; 
         grid-template-columns: repeat(4, 1fr); 
-        gap: 12px; 
-        margin: 20px 0; 
-        width: 100% !important; 
+        gap: 10px; 
+        width: 100% !important;
+        margin: 15px 0;
     }
-    .stat-card { padding: 15px; border-radius: 12px; text-align: center; }
-    .stat-value { font-size: 22px !important; font-weight: 800; color: white !important; display: block; }
-    .stat-label { font-size: 13px; font-weight: 600; color: white !important; }
+    .stat-card { padding: 12px; border-radius: 10px; text-align: center; }
+    .stat-value { font-size: 20px !important; font-weight: 800; color: white !important; }
 
-    /* 4. الكارت الشخصي (عرض كامل) */
     .personal-card { 
         background: linear-gradient(135deg, #003366 0%, #005bb7 100%) !important; 
-        color: white !important; 
-        padding: 20px; 
-        border-radius: 15px; 
-        width: 100% !important;
-        text-align: right !important;
-        border: 1px solid #fff;
-        -webkit-print-color-adjust: exact !important;
+        color: white !important; padding: 15px; border-radius: 15px; width: 100% !important;
+        text-align: right !important; -webkit-print-color-adjust: exact !important;
     }
 
-    /* 5. الموبايل 📱 (منع العرض الطولي المحشور) */
+    /* 📱 ضبط الموبايل (منع العمود الطولي) */
     @media (max-width: 768px) {
         .stats-grid { 
             grid-template-columns: repeat(2, 1fr) !important; 
             width: 100% !important;
         }
-        .main .block-container { padding: 0.5rem !important; }
-        .stTextInput, .stSelectbox { width: 100% !important; }
+        .main .block-container { padding: 5px !important; }
+        .stTextInput { width: 100% !important; }
     }
 
-    /* 6. الطباعة الملونة 🖨️ */
+    /* 🖨️ الطباعة الملونة */
     @media print {
-        section[data-testid="stSidebar"], header, footer, .stButton, [data-testid="stHeader"] {
-            display: none !important;
-        }
+        section[data-testid="stSidebar"], header, footer, .stButton { display: none !important; }
         .main .block-container { max-width: 100% !important; padding: 0 !important; }
         * { -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; }
         .stats-grid { grid-template-columns: repeat(4, 1fr) !important; display: grid !important; }
@@ -118,7 +118,7 @@ if not st.session_state["logged_in"]:
 else:
     u = st.session_state["u_info"]
     with st.sidebar:
-        st.image("IDA_logo_(1).ico", width=100)
+        st.image("IDA_logo_(1).ico", width=80)
         st.markdown(f"**{u['name']}**")
         with st.expander("⚙️ الحساب"):
             new_p = st.text_input("باسورد جديد", type="password")
@@ -126,8 +126,8 @@ else:
                 update_password(u['email'], new_p); st.success("تم")
         if st.button("🚪 خروج", use_container_width=True):
             st.session_state["logged_in"] = False; st.rerun()
-        st.markdown("---")
         
+        # تحميل البيانات
         @st.cache_data
         def get_data():
             f = 'MAR2026.csv'
@@ -146,15 +146,15 @@ else:
         if df_raw is not None:
             unique_dates = sorted([str(d) for d in df_raw[cols['date']].unique() if pd.notna(d)], reverse=True)
             t_month = st.selectbox("📅 الشهر:", ["الكل"] + unique_dates)
-            menu = st.radio("📌 التنقل:", ["🔍 استعلام", "📊 إحصائيات", "🏢 الإدارات", "📥 تصدير"])
+            menu = st.radio("📌 القائمة:", ["🔍 استعلام", "📊 إحصائيات", "🏢 الإدارات", "📥 تصدير"])
 
-    # --- 5. منطقة العرض (المفرودة يميناً) ---
+    # --- 5. العرض المفرود (خارج أي حاوية ضيقة) ---
     if df_raw is not None:
         df_f = df_raw if t_month == "الكل" else df_raw[df_raw[cols['date']].astype(str) == t_month]
         
         if menu == "🔍 استعلام":
-            st.subheader(f"🔍 استعلام المستحقات")
-            q = st.text_input("ابحث بالاسم أو الكود:", key="search_bar")
+            st.subheader(f"🔍 استعلام - {t_month}")
+            q = st.text_input("ابحث بالاسم أو الكود:", key="search_final")
             if q:
                 q_c = re.sub(r'[أإآ]','ا', q).replace('ى','ي').replace('ة','ه').strip()
                 res = df_f[(df_f['Search_Key'].str.contains(q_c, na=False)) | (df_f[cols['code']] == q.strip())]
@@ -170,6 +170,7 @@ else:
                         </div>""", unsafe_allow_html=True)
                         disp = gp[[cols['date'], cols['type'], cols['desc'], cols['ent'], cols['net']]].copy()
                         disp.insert(0, 'م', range(1, len(disp)+1))
+                        # جدول بسيط جداً يملأ المساحة
                         st.markdown(f'<div class="custom-table-container"><table class="custom-table"><thead><tr>{" ".join([f"<th>{c}</th>" for c in disp.columns])}</tr></thead><tbody>' + "".join([f"<tr>{' '.join([f'<td>{v}</td>' for v in row])}</tr>" for row in disp.values]) + '</tbody></table></div>', unsafe_allow_html=True)
                         if st.button(f"🖨️ طباعة {n}"): components.html("<script>window.parent.print();</script>")
                 else: st.warning("🔍 لا توجد نتائج.")
