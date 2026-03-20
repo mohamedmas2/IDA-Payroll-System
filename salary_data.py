@@ -12,15 +12,24 @@ try:
 except ImportError:
     PLOTLY_AVAILABLE = False
 
-# 1. إعداد الصفحة واللوجو
-st.set_page_config(page_title="نظام IDA للمستحقات", layout="wide", page_icon="💰")
+# 1. إعداد الصفحة واللوجو (لوجو الشركة في أيقونة المتصفح)
+st.set_page_config(page_title="نظام IDA للمستحقات", layout="wide", page_icon="IDA_logo_(1).ico")
 
-# 2. تصميم CSS المتطور (تنسيق الشاشة والطباعة)
+# 2. تصميم CSS المتطور (تنسيق الشاشة والطباعة + حماية الموبايل)
 st.markdown("""
     <style>
     @import url('https://fonts.googleapis.com/css2?family=Cairo:wght@400;600;800&display=swap');
     html, body, [class*="css"] { font-family: 'Cairo', sans-serif !important; direction: rtl; text-align: center; }
     .main { background-color: #f4f7f9; }
+    
+    /* ------------- حل مشكلة الكلام بالطول في الموبايل ------------- */
+    [data-testid="stSidebar"] * {
+        white-space: nowrap !important;
+    }
+    .custom-table th, .custom-table td {
+        white-space: nowrap !important;
+    }
+    /* ------------------------------------------------------------- */
     
     .personal-card { background: linear-gradient(135deg, #003366 0%, #005bb7 100%); color: white; padding: 25px; border-radius: 20px; margin-bottom: 25px; border: 2px solid #ffffff; width: 100%; }
     .personal-card h1 { font-size: 35px !important; font-weight: 800; color: white !important; margin: 0; }
@@ -42,7 +51,7 @@ st.markdown("""
         .personal-card { background: transparent !important; color: #003366 !important; border: none !important; text-align: center !important; }
         .personal-card h1 { color: #003366 !important; font-size: 32px !important; text-align: center !important; margin: 0 auto !important; display: block !important; }
         .stat-card { border: 1px solid #ddd !important; margin-bottom: 5px !important; padding: 10px !important; }
-        .stat-value, .stat-label { color: white !important; }
+        .stat-value, .stat-label { color: black !important; }
     }
     </style>
     """, unsafe_allow_html=True)
@@ -86,7 +95,11 @@ df_raw, cols = load_v40_data()
 
 if df_raw is not None:
     with st.sidebar:
-        st.markdown("<h1 style='color: #003366; text-align:center;'>IDA SYSTEM</h1>", unsafe_allow_html=True)
+        # اللوجو رجع مكانه منور الشاشة!
+        st.image("IDA_logo_(1).ico", width=150)
+        st.markdown("<h3 style='color: #003366; text-align:center;'>IDA SYSTEM</h3>", unsafe_allow_html=True)
+        st.markdown("---")
+        
         if cols['date']:
             unique_dates = sorted([str(d) for d in df_raw[cols['date']].unique() if pd.notna(d)], reverse=True)
             available_months = ["الكل"] + unique_dates
@@ -127,20 +140,14 @@ if df_raw is not None:
                     m3.markdown(f'<div class="stat-card" style="background:#dc3545;"><span class="stat-label">إجمالي استقطاع</span><span class="stat-value">{s_ded:,.2f}</span></div>', unsafe_allow_html=True)
                     m4.markdown(f'<div class="stat-card" style="background:#007bff;"><span class="stat-label">الصافي النهائي</span><span class="stat-value">{s_net:,.2f}</span></div>', unsafe_allow_html=True)
                     
-                    # ----------------- التعديل هنا (إضافة المسلسل) -----------------
                     display_cols = [cols["type"], cols["desc"], cols["ent"], cols["net"]]
                     if target_month == "الكل" and cols['date']:
                         display_cols.insert(0, cols['date'])
                     
-                    # إنشاء نسخة من الجدول عشان نضيف المسلسل بدون ما نأثر على البيانات الأصلية
                     disp_df = group[display_cols].copy()
-                    
-                    # إضافة عمود "م" في أول الجدول (Index 0) وبيعد من 1 لحد عدد سطور الموظف
                     disp_df.insert(0, 'م', range(1, len(disp_df) + 1))
                     
                     st.markdown(f'<div class="custom-table-container">{disp_df.to_html(index=False, classes="custom-table", escape=False)}</div>', unsafe_allow_html=True)
-                    # ---------------------------------------------------------------
-                    
                     if st.button(f"🖨️ طباعة {name}"):
                         components.html(f"<script>window.parent.document.title='مستحقات - {name}'; window.parent.print();</script>")
             else: st.warning(f"🔍 لا توجد نتائج.")
@@ -155,20 +162,4 @@ if df_raw is not None:
         c4.metric("💵 الصافي", f"{df[cols['net']].sum():,.0f}")
         if PLOTLY_AVAILABLE:
             with st.expander("📈 عرض رسم الميزانية"):
-                st.plotly_chart(px.pie(names=['الصافي', 'الخصومات'], values=[df[cols['net']].sum(), df[cols['ded']].sum()], hole=0.5), use_container_width=True)
-
-    # 3. تحليل الإدارات
-    elif menu == "🏢 تحليل الإدارات":
-        st.title(f"🏢 تحليل الإدارات - {target_month}")
-        mang_df = df.groupby(cols['mang'])[[cols['ent'], cols['net']]].sum().reset_index()
-        st.dataframe(mang_df, use_container_width=True)
-
-    # 4. تصدير التقارير
-    elif menu == "📥 تصدير التقارير":
-        st.title(f"📥 تصدير بيانات - {target_month}")
-        buffer = io.BytesIO()
-        with pd.ExcelWriter(buffer, engine='xlsxwriter') as writer:
-            df.drop(columns=['Search_Key']).to_excel(writer, index=False, sheet_name='البيانات')
-        st.download_button(f"💾 تحميل ملف Excel الشامل", buffer.getvalue(), f"IDA_Report_{target_month}.xlsx")
-
-else: st.error("❌ ملف MAR2026.csv غير موجود بجانب الكود.")
+                st.plotly_chart(px.pie(names=['الصافي', 'الخصومات'], values=[df[cols['net']].sum(), df[cols['ded']].sum()],
