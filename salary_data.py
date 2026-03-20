@@ -8,7 +8,7 @@ import streamlit.components.v1 as components
 # 1. إعداد الصفحة
 st.set_page_config(page_title="نظام IDA للمستحقات", layout="wide", page_icon="IDA_logo_(1).ico")
 
-# 2. تصميم CSS (التنسيق القديم الفخم - بدون تغيير)
+# 2. تصميم CSS (التنسيق القديم الفخم - ثابت لا يتغير)
 st.markdown("""
     <style>
     @import url('https://fonts.googleapis.com/css2?family=Cairo:wght@400;600;800&display=swap');
@@ -27,14 +27,14 @@ st.markdown("""
 
 # 3. محرك البيانات الدقيق
 @st.cache_data(ttl=60)
-def load_v63_data():
+def load_v64_data():
     f = 'MAR2026.csv'
     if not os.path.exists(f): return None, None
     try:
-        df = pd.read_csv(f, header=0, encoding='utf-8-sig', low_memory=False)
+        # قراءة التاريخ والكود كـ "نص" (String) لمنع تحويلهم لأرقام غريبة
+        df = pd.read_csv(f, header=0, encoding='utf-8-sig', low_memory=False, dtype={'NON': str, 'Employee_Code': str})
         df.columns = [c.strip() for c in df.columns]
         
-        # ربط الأعمدة الفعلية
         cols = {
             'name': 'Name_Employee',
             'code': 'Employee_Code',
@@ -49,20 +49,18 @@ def load_v63_data():
             'desc': 'وصف'
         }
         
-        # تحويل المبالغ لأرقام
+        # تحويل المبالغ فقط لأرقام
         for k in ['ent', 'tax_income', 'tax_stamp', 'ded', 'net']:
             df[cols[k]] = pd.to_numeric(df[cols[k]].astype(str).str.replace(',', ''), errors='coerce').fillna(0)
         
-        # تنظيف كود الموظف (إزالة الفواصل لو وجدت)
-        df[cols['code']] = df[cols['code']].astype(str).str.split('.').str[0].str.strip()
-        
-        # مفتاح البحث عن الاسم
+        # تنظيف عمود التاريخ والاسم
+        df[cols['date']] = df[cols['date']].fillna('غير محدد').str.strip()
         df['Search_Name'] = df[cols['name']].astype(str).str.replace(r'[أإآ]', 'ا', regex=True).str.replace('ى', 'ي').str.replace('ة', 'ه').str.strip()
         
         return df, cols
     except: return None, None
 
-df_raw, cols = load_v63_data()
+df_raw, cols = load_v64_data()
 
 if df_raw is not None:
     st.markdown("<div class='app-main-title'>💰 IDA SYSTEM</div>", unsafe_allow_html=True)
@@ -70,24 +68,23 @@ if df_raw is not None:
     with st.sidebar:
         st.image("IDA_logo_(1).ico", width=150)
         st.markdown("---")
-        available_months = ["الكل"] + sorted(df_raw[cols['date']].unique().astype(str), reverse=True)
-        target_month = st.selectbox("📅 اختر الفترة:", available_months)
+        # قائمة التاريخ الآن ستظهر نصوص (مثل 392026) وليست أرقام عشرية
+        available_months = ["الكل"] + sorted(df_raw[cols['date']].unique(), reverse=True)
+        target_month = st.selectbox("📅 اختر الفترة (الشهر):", available_months)
         menu = st.radio("📂 القائمة:", ["🔍 استعلام الموظفين", "📊 إحصائيات", "📥 تصدير"])
 
     # تصفية البيانات حسب الشهر
-    df_filtered = df_raw if target_month == "الكل" else df_raw[df_raw[cols['date']].astype(str) == target_month]
+    df_filtered = df_raw if target_month == "الكل" else df_raw[df_raw[cols['date']] == target_month]
 
     if menu == "🔍 استعلام الموظفين":
-        q = st.text_input("✍️ ابحث هنا (بالاسم أو الكود الشخصي فقط):")
+        q = st.text_input("✍️ ابحث هنا (بالاسم أو الكود الشخصي):")
         
         if q:
             q_clean = q.strip()
-            # فحص إذا كان البحث رقمي (كود) أو نصي (اسم)
+            # البحث الذكي: لو رقم يبحث في الكود، لو نص يبحث في الاسم
             if q_clean.isdigit():
-                # بحث دقيق بالكود الشخصي فقط
                 res = df_filtered[df_filtered[cols['code']] == q_clean]
             else:
-                # بحث بالاسم مع تنظيف الحروف
                 name_q = re.sub(r'[أإآ]', 'ا', q_clean).replace('ى', 'ي').replace('ة', 'ه')
                 res = df_filtered[df_filtered['Search_Name'].str.contains(name_q, na=False)]
             
@@ -106,13 +103,14 @@ if df_raw is not None:
                     m3.markdown(f'<div class="stat-card" style="background:#dc3545;"><span class="stat-label">إجمالي استقطاع</span><br><span class="stat-value">{s_ded:,.2f}</span></div>', unsafe_allow_html=True)
                     m4.markdown(f'<div class="stat-card" style="background:#007bff;"><span class="stat-label">الصافي النهائي</span><br><span class="stat-value">{s_net:,.2f}</span></div>', unsafe_allow_html=True)
                     
+                    # الجدول
                     d_cols = ([cols['date']] if target_month == "الكل" else []) + [cols['type'], cols['desc'], cols['ent'], cols['net']]
                     final_df = group[d_cols].copy()
                     final_df.insert(0, 'م', range(1, len(final_df)+1))
                     st.markdown(f"<div class='custom-table-container'>{final_df.to_html(index=False, classes='custom-table')}</div>", unsafe_allow_html=True)
                     if st.button(f"🖨️ طباعة {name}"):
                         components.html("<script>window.parent.print();</script>")
-            else: st.warning("🔍 لا توجد نتائج مطابقة لهذا الموظف.")
+            else: st.warning("🔍 لا توجد نتائج مطابقة.")
 
     elif menu == "📊 إحصائيات":
         st.metric("صافي المنصرف", f"{df_filtered[cols['net']].sum():,.2f}")
