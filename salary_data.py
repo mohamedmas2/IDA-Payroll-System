@@ -56,7 +56,6 @@ def load_v40_data():
         df = pd.read_csv(file_name, header=0, encoding='utf-8-sig', low_memory=False, dtype={'National_ID': str, 'Employee_Code': str})
         df.columns = [c.strip() for c in df.columns]
         
-        # رجعت لك الكود بتاعك هنا (اللي بيقرأ عمود التاريخ الصح "Date")
         p = {
             'name': ['name_employee', 'اسم الموظف'], 'code': ['employee_code', 'كود'], 
             'date': ['التاريخ', 'date', 'Date'], 'mang': ['mangment', 'الإدارة'],
@@ -89,7 +88,6 @@ if df_raw is not None:
     with st.sidebar:
         st.markdown("<h1 style='color: #003366; text-align:center;'>IDA SYSTEM</h1>", unsafe_allow_html=True)
         if cols['date']:
-            # اضافة "الكل" هنا، وهيظهر لك الـ 3 تواريخ بتوعك فقط
             unique_dates = sorted([str(d) for d in df_raw[cols['date']].unique() if pd.notna(d)], reverse=True)
             available_months = ["الكل"] + unique_dates
             target_month = st.selectbox("📅 اختر شهر الصرف:", available_months)
@@ -129,12 +127,20 @@ if df_raw is not None:
                     m3.markdown(f'<div class="stat-card" style="background:#dc3545;"><span class="stat-label">إجمالي استقطاع</span><span class="stat-value">{s_ded:,.2f}</span></div>', unsafe_allow_html=True)
                     m4.markdown(f'<div class="stat-card" style="background:#007bff;"><span class="stat-label">الصافي النهائي</span><span class="stat-value">{s_net:,.2f}</span></div>', unsafe_allow_html=True)
                     
-                    # لو مختار "الكل"، بنضيف عمود التاريخ في الجدول عشان الموظف يعرف البند ده تبع أي شهر
+                    # ----------------- التعديل هنا (إضافة المسلسل) -----------------
                     display_cols = [cols["type"], cols["desc"], cols["ent"], cols["net"]]
                     if target_month == "الكل" and cols['date']:
                         display_cols.insert(0, cols['date'])
-                        
-                    st.markdown(f'<div class="custom-table-container">{group[display_cols].to_html(index=False, classes="custom-table", escape=False)}</div>', unsafe_allow_html=True)
+                    
+                    # إنشاء نسخة من الجدول عشان نضيف المسلسل بدون ما نأثر على البيانات الأصلية
+                    disp_df = group[display_cols].copy()
+                    
+                    # إضافة عمود "م" في أول الجدول (Index 0) وبيعد من 1 لحد عدد سطور الموظف
+                    disp_df.insert(0, 'م', range(1, len(disp_df) + 1))
+                    
+                    st.markdown(f'<div class="custom-table-container">{disp_df.to_html(index=False, classes="custom-table", escape=False)}</div>', unsafe_allow_html=True)
+                    # ---------------------------------------------------------------
+                    
                     if st.button(f"🖨️ طباعة {name}"):
                         components.html(f"<script>window.parent.document.title='مستحقات - {name}'; window.parent.print();</script>")
             else: st.warning(f"🔍 لا توجد نتائج.")
