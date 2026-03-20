@@ -42,46 +42,37 @@ st.markdown("""
         .personal-card { background: transparent !important; color: #003366 !important; border: none !important; text-align: center !important; }
         .personal-card h1 { color: #003366 !important; font-size: 32px !important; text-align: center !important; margin: 0 auto !important; display: block !important; }
         .stat-card { border: 1px solid #ddd !important; margin-bottom: 5px !important; padding: 10px !important; }
-        .stat-value, .stat-label { color: black !important; }
+        .stat-value, .stat-label { color: white !important; }
     }
     </style>
     """, unsafe_allow_html=True)
 
-# 3. محرك البيانات المطور (تم تغيير الاسم لكسر الذاكرة المؤقتة)
+# 3. محرك البيانات المطور
 @st.cache_data
-def load_data_super_clean():
+def load_v40_data():
+    # عند الرفع أونلاين، نكتفي باسم الملف فقط إذا كان بجانب الكود
     file_name = 'MAR2026.csv'
     if not os.path.exists(file_name): return None, None
     try:
-        df = pd.read_csv(file_name, header=0, encoding='utf-8-sig', low_memory=False)
+        df = pd.read_csv(file_name, header=0, encoding='utf-8-sig', low_memory=False, dtype={'National_ID': str, 'Employee_Code': str})
         df.columns = [c.strip() for c in df.columns]
         
         p = {
             'name': ['name_employee', 'اسم الموظف'], 'code': ['employee_code', 'كود'], 
-            'date': ['التاريخ', 'date', 'Date', 'NON'], 'mang': ['mangment', 'الإدارة'],
+            'date': ['التاريخ', 'date', 'Date'], 'mang': ['mangment', 'الإدارة'],
             'type': ['نوع الصرف'], 'ent': ['أجمالى الاستحقاقات'], 'tax': ['ضريبة الدخل'],
             'stamp': ['ضريبة الدمغة'], 'ded': ['الأجمالى الاستقطاعات'], 'net': ['الصافي'],
             'nat': ['national_id', 'الرقم القومي'], 'desc': ['وصف']
         }
         cols = {k: next((c for c in df.columns if any(w.lower() in c.lower() for w in p[k])), None) for k in p}
         
-        # ---------------- الحل القاطع لمشكلة الـ .0 ----------------
-        if cols['date']:
-            # 1. تحويل أي خانة فاضية لكلمة "غير محدد" عشان بايثون ميتلخبطش
-            df[cols['date']] = df[cols['date']].fillna('غير محدد')
-            # 2. كود بيفصل النص نصين من عند النقطة (.) وياخد الجزء اللي قبلها بس!
-            df[cols['date']] = df[cols['date']].astype(str).apply(lambda x: x.split('.')[0].strip())
-            # 3. التأكيد على مسح أي كلمة nan
-            df[cols['date']] = df[cols['date']].replace(['nan', 'NaN'], 'غير محدد')
-        # -------------------------------------------------------------
-
         if cols['name']:
             df[cols['name']] = df[cols['name']].astype(str).str.replace(r'\s+', ' ', regex=True).str.strip()
             df['Search_Key'] = df[cols['name']].str.replace(r'[أإآ]', 'ا', regex=True).str.replace('ى', 'ي').str.replace('ة', 'ه')
             
         def clean_money(val):
             v = str(val).replace(',', '').strip()
-            if v in ["", "-", "0", "nan", "NaN"]: return 0.0
+            if v in ["", "-", "0", "nan"]: return 0.0
             try: return float(v)
             except: return 0.0
             
@@ -92,31 +83,24 @@ def load_data_super_clean():
     except Exception as e:
         st.error(f"خطأ في تحميل الملف: {e}"); return None, None
 
-df_raw, cols = load_data_super_clean()
+df_raw, cols = load_v40_data()
 
 if df_raw is not None:
     with st.sidebar:
         st.markdown("<h1 style='color: #003366; text-align:center;'>IDA SYSTEM</h1>", unsafe_allow_html=True)
         if cols['date']:
-            # تصفية الشهور من كلمة "غير محدد" وترتيبها
-            unique_dates = [d for d in df_raw[cols['date']].unique() if d != 'غير محدد']
-            available_months = ["الكل"] + sorted(unique_dates, reverse=True)
-            
+            available_months = sorted(df_raw[cols['date']].unique(), reverse=True)
             target_month = st.selectbox("📅 اختر شهر الصرف:", available_months)
-            
-            if target_month == "الكل":
-                df = df_raw
-            else:
-                df = df_raw[df_raw[cols['date']] == target_month]
+            df = df_raw[df_raw[cols['date']] == target_month]
         else:
             df = df_raw
             target_month = "غير محدد"
         
-        menu = st.radio("📌 القائمة الرئيسية:", ["🔍 استعلام الموظفين", "📊 إحصائيات عامة", "📥 تصدير التقارير"])
+        menu = st.radio("📌 القائمة الرئيسية:", ["🔍 استعلام الموظفين", "📊 إحصائيات عامة", "🏢 تحليل الإدارات", "📥 تصدير التقارير"])
 
     # 1. استعلام الموظفين
     if menu == "🔍 استعلام الموظفين":
-        st.title(f"🔍 استعلام - {target_month}")
+        st.title(f"🔍 استعلام شهر {target_month}")
         c_search1, c_search2 = st.columns([1, 2])
         with c_search1: mode = st.selectbox("بحث بـ:", ["الاسم", "الكود"])
         with c_search2: q = st.text_input("✍️ ابدأ الكتابة هنا:")
@@ -139,19 +123,14 @@ if df_raw is not None:
                     m3.markdown(f'<div class="stat-card" style="background:#dc3545;"><span class="stat-label">إجمالي استقطاع</span><span class="stat-value">{s_ded:,.2f}</span></div>', unsafe_allow_html=True)
                     m4.markdown(f'<div class="stat-card" style="background:#007bff;"><span class="stat-label">الصافي النهائي</span><span class="stat-value">{s_net:,.2f}</span></div>', unsafe_allow_html=True)
                     
-                    # عرض عمود التاريخ في الجدول لما نختار "الكل" عشان ميبقاش الجدول سايح في بعضه
-                    display_cols = [cols["type"], cols["desc"], cols["ent"], cols["net"]]
-                    if target_month == "الكل":
-                        display_cols.insert(0, cols["date"])
-                        
-                    st.markdown(f'<div class="custom-table-container">{group[display_cols].to_html(index=False, classes="custom-table", escape=False)}</div>', unsafe_allow_html=True)
+                    st.markdown(f'<div class="custom-table-container">{group[[cols["type"], cols["desc"], cols["ent"], cols["net"]]].to_html(index=False, classes="custom-table", escape=False)}</div>', unsafe_allow_html=True)
                     if st.button(f"🖨️ طباعة {name}"):
                         components.html(f"<script>window.parent.document.title='مستحقات - {name}'; window.parent.print();</script>")
             else: st.warning(f"🔍 لا توجد نتائج.")
 
     # 2. إحصائيات عامة
     elif menu == "📊 إحصائيات عامة":
-        st.title(f"📊 مؤشرات - {target_month}")
+        st.title(f"📊 مؤشرات شهر {target_month}")
         c1, c2, c3, c4 = st.columns(4)
         c1.metric("👥 الموظفين", f"{df['Search_Key'].nunique():,}")
         c2.metric("💰 الميزانية", f"{df[cols['ent']].sum():,.0f}")
@@ -163,7 +142,7 @@ if df_raw is not None:
 
     # 3. تصدير التقارير
     elif menu == "📥 تصدير التقارير":
-        st.title(f"📥 تصدير بيانات - {target_month}")
+        st.title(f"📥 تصدير بيانات {target_month}")
         buffer = io.BytesIO()
         with pd.ExcelWriter(buffer, engine='xlsxwriter') as writer:
             df.drop(columns=['Search_Key']).to_excel(writer, index=False, sheet_name='البيانات')
