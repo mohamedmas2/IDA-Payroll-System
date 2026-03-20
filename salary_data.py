@@ -5,106 +5,123 @@ import os
 import io
 import streamlit.components.v1 as components
 
-# 1. إعداد الصفحة واللوجو
-st.set_page_config(page_title="نظام IDA للمستحقات", layout="wide", page_icon="IDA_logo_(1).ico")
+# محاولة استيراد Plotly
+try:
+    import plotly.express as px
+    PLOTLY_AVAILABLE = True
+except ImportError:
+    PLOTLY_AVAILABLE = False
 
-# 2. تصميم CSS (التنسيق القديم الفخم المعتمد)
+# إعداد الصفحة
+st.set_page_config(page_title="نظام IDA للمستحقات", layout="wide", page_icon="💰")
+
+# CSS
 st.markdown("""
-    <style>
-    @import url('https://fonts.googleapis.com/css2?family=Cairo:wght@400;600;800&display=swap');
-    html, body, [class*="css"] { font-family: 'Cairo', sans-serif !important; direction: rtl; text-align: center; }
-    .main { background-color: #f4f7f9; }
-    .personal-card { background: linear-gradient(135deg, #003366 0%, #005bb7 100%); color: white; padding: 25px; border-radius: 20px; margin-bottom: 25px; border: 2px solid #ffffff; width: 100%; }
-    .personal-card h1 { font-size: 35px !important; font-weight: 800; color: white !important; margin: 0; }
-    .stat-card { padding: 20px; border-radius: 15px; color: white !important; text-align: center; margin-bottom: 15px; box-shadow: 0 4px 10px rgba(0,0,0,0.1); }
-    .stat-value { font-size: 28px !important; font-weight: 800; display: block; color: white !important; }
-    .stat-label { color: white !important; font-size: 16px; font-weight: 600; }
-    .custom-table-container { width: 100%; overflow-x: auto; border-radius: 15px; background: white; padding: 10px; box-shadow: 0 5px 15px rgba(0,0,0,0.05); }
-    .custom-table { width: 100%; border-collapse: collapse; text-align: center; }
-    .custom-table th { background-color: #003366; color: white; padding: 12px; }
-    .custom-table td { padding: 10px; border: 1px solid #ddd; font-weight: 600; }
-    </style>
-    """, unsafe_allow_html=True)
+<style>
+html, body { direction: rtl; text-align: center; }
+</style>
+""", unsafe_allow_html=True)
 
-# 3. محرك البيانات (إصلاح مشكلة الأرقام العشرية في التاريخ)
-@st.cache_data(ttl=60)
-def load_v43_data():
+# تحميل البيانات
+@st.cache_data
+def load_data():
     file_name = 'MAR2026.csv'
-    if not os.path.exists(file_name): return None, None
-    try:
-        # أهم سطر: نجبر البرنامج يقرأ عمود التاريخ (NON) كـ "نص" (str) عشان يظهر 392026 مش 392026.0
-        df = pd.read_csv(file_name, header=0, encoding='utf-8-sig', low_memory=False, 
-                         dtype={'NON': str, 'Employee_Code': str, 'National_ID': str})
-        
-        df.columns = [c.strip() for c in df.columns]
-        
-        cols = {
-            'name': 'Name_Employee', 'code': 'Employee_Code', 'date': 'NON',
-            'mang': 'Mangment', 'type': 'نوع الصرف', 'ent': 'أجمالى الاستحقاقات',
-            'tax': 'ضريبة الدخل', 'stamp': 'ضريبة الدمغة', 'ded': 'الأجمالى الاستقطاعات',
-            'net': 'الصافي', 'nat': 'National_ID', 'desc': 'وصف'
-        }
-        
-        # تحويل مبالغ الفلوس فقط لأرقام
-        for k in ['ent', 'tax', 'stamp', 'ded', 'net']:
-            df[cols[k]] = pd.to_numeric(df[cols[k]].astype(str).str.replace(',', ''), errors='coerce').fillna(0)
-            
-        # تنظيف عمود التاريخ من أي .0 لو كانت لسه موجودة
-        df[cols['date']] = df[cols['date']].astype(str).str.replace('.0', '', regex=False).str.strip()
-        
-        df['Search_Key'] = df[cols['name']].astype(str).str.replace(r'[أإآ]', 'ا', regex=True).str.replace('ى', 'ي').str.replace('ة', 'ه').str.strip()
-        
-        return df, cols
-    except: return None, None
+    if not os.path.exists(file_name):
+        return None, None
 
-df_raw, cols = load_v43_data()
+    df = pd.read_csv(file_name, encoding='utf-8-sig', dtype=str)
+    df.columns = [c.strip() for c in df.columns]
+
+    p = {
+        'name': ['name_employee', 'اسم الموظف'],
+        'code': ['employee_code', 'كود'],
+        'date': ['التاريخ', 'date'],
+        'type': ['نوع الصرف'],
+        'ent': ['أجمالى الاستحقاقات'],
+        'tax': ['ضريبة الدخل'],
+        'stamp': ['ضريبة الدمغة'],
+        'ded': ['الأجمالى الاستقطاعات'],
+        'net': ['الصافي'],
+        'nat': ['national_id'],
+        'desc': ['وصف']
+    }
+
+    cols = {k: next((c for c in df.columns if any(w.lower() in c.lower() for w in p[k])), None) for k in p}
+
+    # تنظيف الاسم
+    df[cols['name']] = df[cols['name']].astype(str).str.strip()
+    df['Search_Key'] = df[cols['name']]
+
+    # تحويل أرقام
+    for k in ['ent', 'tax', 'stamp', 'ded', 'net']:
+        if cols[k]:
+            df[cols[k]] = pd.to_numeric(df[cols[k]], errors='coerce').fillna(0)
+
+    return df, cols
+
+df_raw, cols = load_data()
 
 if df_raw is not None:
+
     with st.sidebar:
-        st.image("IDA_logo_(1).ico", width=150)
-        st.markdown("---")
-        
-        # قائمة الشهور بدون أرقام عشرية
-        available_months = ["الكل"] + sorted(df_raw[cols['date']].unique().tolist(), reverse=True)
+
+        # 👇 اختيار الشهر مع "الكل"
+        available_months = sorted(df_raw[cols['date']].dropna().unique(), reverse=True)
+        available_months = ["الكل"] + available_months
+
         target_month = st.selectbox("📅 اختر شهر الصرف:", available_months)
-        
-        menu = st.radio("📌 القائمة الرئيسية:", ["🔍 استعلام الموظفين", "📊 إحصائيات عامة", "📥 تصدير التقارير"])
 
-    df_filtered = df_raw if target_month == "الكل" else df_raw[df_raw[cols['date']] == target_month]
+        # 👇 الفلترة الصح
+        if target_month == "الكل":
+            df = df_raw.copy()
+        else:
+            df = df_raw[df_raw[cols['date']] == target_month]
 
-    if menu == "🔍 استعلام الموظفين":
-        q = st.text_input("✍️ ابحث هنا بالاسم أو الكود:")
+        menu = st.radio("📌 القائمة:", ["استعلام"])
+
+    # =========================
+    # 🔍 البحث
+    # =========================
+    if menu == "استعلام":
+
+        q = st.text_input("ابحث بالاسم أو الكود")
+
         if q:
-            q_clean = re.sub(r'[أإآ]', 'ا', q).replace('ى', 'ي').replace('ة', 'ه').strip()
-            # البحث الدقيق
-            res = df_filtered[(df_filtered['Search_Key'].str.contains(q_clean, na=False)) | (df_filtered[cols['code']] == q.strip())]
-            
+
+            res = df[
+                df[cols['name']].str.contains(q, case=False, na=False) |
+                df[cols['code']].astype(str).str.contains(q, na=False)
+            ]
+
             if not res.empty:
+
                 for name, group in res.groupby(cols['name']):
-                    st.markdown(f'<div class="personal-card"><h1>{name}</h1><p>🆔 كود: {group.iloc[0][cols["code"]]} | 🏢 {group.iloc[0][cols["mang"]]}</p></div>', unsafe_allow_html=True)
-                    
-                    s_ent, s_tax, s_ded, s_net = group[cols['ent']].sum(), (group[cols['tax']].sum() + group[cols['stamp']].sum()), group[cols['ded']].sum(), group[cols['net']].sum()
-                    
-                    m1, m2, m3, m4 = st.columns(4)
-                    m1.markdown(f'<div class="stat-card" style="background:#28a745;"><span class="stat-label">إجمالي المستحق</span><span class="stat-value">{s_ent:,.2f}</span></div>', unsafe_allow_html=True)
-                    m2.markdown(f'<div class="stat-card" style="background:#ffc107;"><span class="stat-label" style="color:black">ضرائب ودمغة</span><span class="stat-value" style="color:black">{s_tax:,.2f}</span></div>', unsafe_allow_html=True)
-                    m3.markdown(f'<div class="stat-card" style="background:#dc3545;"><span class="stat-label">إجمالي استقطاع</span><span class="stat-value">{s_ded:,.2f}</span></div>', unsafe_allow_html=True)
-                    m4.markdown(f'<div class="stat-card" style="background:#007bff;"><span class="stat-label">الصافي النهائي</span><span class="stat-value">{s_net:,.2f}</span></div>', unsafe_allow_html=True)
-                    
-                    d_cols = ([cols['date']] if target_month == "الكل" else []) + [cols['type'], cols['desc'], cols['ent'], cols['net']]
-                    st.markdown(f'<div class="custom-table-container">{group[d_cols].to_html(index=False, classes="custom-table")}</div>', unsafe_allow_html=True)
-                    
-                    if st.button(f"🖨️ طباعة {name}"):
-                        components.html("<script>window.parent.print();</script>")
-            else: st.warning("🔍 لا توجد نتائج.")
 
-    elif menu == "📊 إحصائيات عامة":
-        st.metric("💵 إجمالي الصافي للفترة", f"{df_filtered[cols['net']].sum():,.2f}")
-        st.bar_chart(df_filtered.groupby(cols['mang'])[cols['net']].sum())
+                    st.subheader(name)
 
-    elif menu == "📥 تصدير التقارير":
-        buffer = io.BytesIO()
-        df_filtered.to_excel(buffer, index=False)
-        st.download_button("💾 تحميل ملف Excel", buffer.getvalue(), f"IDA_Report.xlsx")
+                    # إجماليات
+                    total_ent = group[cols['ent']].sum()
+                    total_ded = group[cols['ded']].sum()
+                    total_net = group[cols['net']].sum()
 
-else: st.error("❌ ملف MAR2026.csv غير موجود.")
+                    col1, col2, col3 = st.columns(3)
+                    col1.metric("إجمالي", f"{total_ent:,.0f}")
+                    col2.metric("استقطاعات", f"{total_ded:,.0f}")
+                    col3.metric("صافي", f"{total_net:,.0f}")
+
+                    # 👇 لو "الكل" نعرض التاريخ
+                    if target_month == "الكل":
+                        show_cols = [cols['date'], cols['type'], cols['desc'], cols['ent'], cols['net']]
+                    else:
+                        show_cols = [cols['type'], cols['desc'], cols['ent'], cols['net']]
+
+                    st.dataframe(group[show_cols])
+
+                    if st.button(f"طباعة {name}"):
+                        components.html("<script>window.print()</script>")
+
+            else:
+                st.warning("لا توجد نتائج")
+
+else:
+    st.error("❌ الملف غير موجود")
