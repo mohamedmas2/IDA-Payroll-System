@@ -33,7 +33,7 @@ st.set_page_config(page_title="نظام IDA للمستحقات", layout="wide", 
 if "logged_in" not in st.session_state:
     st.session_state["logged_in"] = False
 
-# CSS الاحترافي (الموبايل والطباعة)
+# CSS الاحترافي
 st.markdown("""
     <style>
     @import url('https://fonts.googleapis.com/css2?family=Cairo:wght@400;600;800&display=swap');
@@ -68,8 +68,10 @@ if not st.session_state["logged_in"]:
                 st.session_state["logged_in"] = True
                 st.session_state["u_info"] = match.iloc[0].to_dict()
                 st.rerun()
-            else: st.error("❌ بيانات الدخول غير صحيحة")
+            else:
+                st.error("❌ بيانات الدخول غير صحيحة")
 else:
+    # --- 4. البرنامج الرئيسي (بعد الدخول) ---
     u = st.session_state["u_info"]
     
     with st.sidebar:
@@ -89,7 +91,7 @@ else:
             st.rerun()
         st.markdown("---")
 
-        # --- تحميل البيانات وفلترة الشهور ---
+        # دالة تحميل البيانات
         @st.cache_data
         def load_data():
             f = 'MAR2026.csv'
@@ -98,12 +100,8 @@ else:
                 df.columns = [c.strip() for c in df.columns]
                 p = {'name':['name_employee','اسم الموظف'],'code':['employee_code','كود'],'date':['التاريخ','date','Date'],'net':['الصافي'],'ent':['أجمالى الاستحقاقات'],'ded':['الأجمالى الاستقطاعات'],'nat':['national_id','الرقم القومي'],'tax':['ضريبة الدخل'],'stamp':['ضريبة الدمغة'],'type':['نوع الصرف'],'desc':['وصف'],'mang':['mangment','الإدارة']}
                 cols = {k: next((c for c in df.columns if any(w.lower() in c.lower() for w in p[k])), None) for k in p}
-                
-                # تنظيف المبالغ
                 for k in ['ent','net','ded','tax','stamp']:
                     if cols[k]: df[cols[k]] = pd.to_numeric(df[cols[k]].astype(str).str.replace(',',''), errors='coerce').fillna(0)
-                
-                # تنظيف البحث
                 df['Search_Key'] = df[cols['name']].astype(str).str.replace(r'[أإآ]','ا',regex=True).str.replace('ى','ي').str.replace('ة','ه').str.strip()
                 return df, cols
             return None, None
@@ -111,66 +109,59 @@ else:
         df_raw, cols = load_data()
         
         if df_raw is not None:
-            # --- فلترة الشهور (رجعت من تاني!) ---
             if cols['date']:
                 unique_dates = sorted([str(d) for d in df_raw[cols['date']].unique() if pd.notna(d)], reverse=True)
-                available_months = ["الكل"] + unique_dates
-                target_month = st.selectbox("📅 اختر شهر الصرف:", available_months)
-                
+                target_month = st.selectbox("📅 اختر شهر الصرف:", ["الكل"] + unique_dates)
                 df_filtered = df_raw if target_month == "الكل" else df_raw[df_raw[cols['date']].astype(str) == target_month]
             else:
                 df_filtered = df_raw
                 target_month = "الكل"
 
-            # القائمة حسب الصلاحية
             opts = ["🔍 استعلام الموظفين"]
             if u['role'] in ['admin', 'viewer']: opts.append("📊 إحصائيات عامة")
             if u['role'] == 'admin': opts.extend(["🏢 تحليل الإدارات", "📥 تصدير التقارير"])
             menu = st.radio("📌 القائمة:", opts)
 
-    # --- 5. شاشات العرض ---
-    if st.session_state["logged_in"]:
-        if menu == "🔍 استعلام الموظفين":
-            st.title(f"🔍 استعلام - {target_month}")
-            q = st.text_input("ابحث بالاسم أو الكود:")
-            if q:
-                q_c = re.sub(r'[أإآ]','ا', q).replace('ى','ي').replace('ة','ه').strip()
-                res = df_filtered[(df_filtered['Search_Key'].str.contains(q_c, na=False)) | (df_filtered[cols['code']] == q.strip())]
-                if not res.empty:
-                    for n, gp in res.groupby(cols['name']):
-                        st.markdown(f'<div class="personal-card"><h1>{n}</h1><p>🆔 {gp.iloc[0][cols["code"]]} | 📄 {gp.iloc[0][cols["nat"]]}</p></div>', unsafe_allow_html=True)
-                        s_ent, s_tax, s_ded, s_net = gp[cols['ent']].sum(), (gp[cols['tax']].sum()+gp[cols['stamp']].sum()), gp[cols['ded']].sum(), gp[cols['net']].sum()
-                        st.markdown(f"""<div class="stats-grid">
-                            <div class="stat-card" style="background:#28a745;"><span class="stat-label">المستحق</span><span class="stat-value">{s_ent:,.2f}</span></div>
-                            <div class="stat-card" style="background:#ffc107;"><span class="stat-label" style="color:black">ضرائب</span><span class="stat-value" style="color:black">{s_tax:,.2f}</span></div>
-                            <div class="stat-card" style="background:#dc3545;"><span class="stat-label">استقطاع</span><span class="stat-value">{s_ded:,.2f}</span></div>
-                            <div class="stat-card" style="background:#007bff;"><span class="stat-label">الصافي</span><span class="stat-value">{s_net:,.2f}</span></div>
-                        </div>""", unsafe_allow_html=True)
-                        
-                        display_cols = [cols["type"], cols["desc"], cols["ent"], cols["net"]]
-                        if target_month == "الكل": display_cols.insert(0, cols['date'])
-                        
-                        disp = gp[display_cols].copy()
-                        disp.insert(0, 'م', range(1, len(disp)+1))
-                        st.markdown(f'<div class="custom-table-container">{disp.to_html(index=False, classes="custom-table")}</div>', unsafe_allow_html=True)
-                        if st.button(f"🖨️ طباعة {n}"): components.html("<script>window.parent.print();</script>")
-                else: st.warning("لا توجد نتائج")
+            # --- 5. شاشات العرض داخل البلوك الصحيح ---
+            if menu == "🔍 استعلام الموظفين":
+                st.title(f"🔍 استعلام - {target_month}")
+                q = st.text_input("ابحث بالاسم أو الكود:")
+                if q:
+                    q_c = re.sub(r'[أإآ]','ا', q).replace('ى','ي').replace('ة','ه').strip()
+                    res = df_filtered[(df_filtered['Search_Key'].str.contains(q_c, na=False)) | (df_filtered[cols['code']] == q.strip())]
+                    if not res.empty:
+                        for n, gp in res.groupby(cols['name']):
+                            st.markdown(f'<div class="personal-card"><h1>{n}</h1><p>🆔 {gp.iloc[0][cols["code"]]} | 📄 {gp.iloc[0][cols["nat"]]}</p></div>', unsafe_allow_html=True)
+                            s_ent, s_tax, s_ded, s_net = gp[cols['ent']].sum(), (gp[cols['tax']].sum()+gp[cols['stamp']].sum()), gp[cols['ded']].sum(), gp[cols['net']].sum()
+                            st.markdown(f"""<div class="stats-grid">
+                                <div class="stat-card" style="background:#28a745;"><span class="stat-label">المستحق</span><span class="stat-value">{s_ent:,.2f}</span></div>
+                                <div class="stat-card" style="background:#ffc107;"><span class="stat-label" style="color:black">ضرائب</span><span class="stat-value" style="color:black">{s_tax:,.2f}</span></div>
+                                <div class="stat-card" style="background:#dc3545;"><span class="stat-label">استقطاع</span><span class="stat-value">{s_ded:,.2f}</span></div>
+                                <div class="stat-card" style="background:#007bff;"><span class="stat-label">الصافي</span><span class="stat-value">{s_net:,.2f}</span></div>
+                            </div>""", unsafe_allow_html=True)
+                            display_cols = [cols["type"], cols["desc"], cols["ent"], cols["net"]]
+                            if target_month == "الكل": display_cols.insert(0, cols['date'])
+                            disp = gp[display_cols].copy()
+                            disp.insert(0, 'م', range(1, len(disp)+1))
+                            st.markdown(f'<div class="custom-table-container">{disp.to_html(index=False, classes="custom-table")}</div>', unsafe_allow_html=True)
+                            if st.button(f"🖨️ طباعة {n}"): components.html("<script>window.parent.print();</script>")
+                    else: st.warning("لا توجد نتائج")
 
-        elif menu == "📊 إحصائيات عامة":
-            st.title(f"📊 مؤشرات - {target_month}")
-            c1, c2, c3, c4 = st.columns(4)
-            c1.metric("👥 الموظفين", f"{df_filtered['Search_Key'].nunique():,}")
-            c2.metric("💰 الميزانية", f"{df_filtered[cols['ent']].sum():,.0f}")
-            c3.metric("✂️ الخصومات", f"{df_filtered[cols['ded']].sum():,.0f}")
-            c4.metric("💵 الصافي", f"{df_filtered[cols['net']].sum():,.0f}")
+            elif menu == "📊 إحصائيات عامة":
+                st.title(f"📊 مؤشرات - {target_month}")
+                c1, c2, c3, c4 = st.columns(4)
+                c1.metric("👥 الموظفين", f"{df_filtered['Search_Key'].nunique():,}")
+                c2.metric("💰 الميزانية", f"{df_filtered[cols['ent']].sum():,.0f}")
+                c3.metric("✂️ الخصومات", f"{df_filtered[cols['ded']].sum():,.0f}")
+                c4.metric("💵 الصافي", f"{df_filtered[cols['net']].sum():,.0f}")
 
-        elif menu == "🏢 تحليل الإدارات":
-            st.title(f"🏢 ميزانية الإدارات - {target_month}")
-            st.dataframe(df_filtered.groupby(cols['mang'])[[cols['ent'], cols['net']]].sum(), use_container_width=True)
+            elif menu == "🏢 تحليل الإدارات":
+                st.title(f"🏢 ميزانية الإدارات - {target_month}")
+                st.dataframe(df_filtered.groupby(cols['mang'])[[cols['ent'], cols['net']]].sum(), use_container_width=True)
 
-        elif menu == "📥 تصدير التقارير":
-            st.title(f"📥 تصدير - {target_month}")
-            buf = io.BytesIO(); df_filtered.to_excel(buf, index=False)
-            st.download_button(f"💾 تحميل ملف إكسيل {target_month}", buf.getvalue(), f"IDA_Report_{target_month}.xlsx")
-
-else: st.error("❌ ملف MAR2026.csv مفقود!")
+            elif menu == "📥 تصدير التقارير":
+                st.title(f"📥 تصدير - {target_month}")
+                buf = io.BytesIO(); df_filtered.to_excel(buf, index=False)
+                st.download_button(f"💾 تحميل ملف إكسيل {target_month}", buf.getvalue(), f"IDA_Report_{target_month}.xlsx")
+        else:
+            st.error("❌ ملف MAR2026.csv مفقود!")
