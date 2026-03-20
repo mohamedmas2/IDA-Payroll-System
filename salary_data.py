@@ -14,36 +14,44 @@ except ImportError:
 # 1. إعداد الصفحة
 st.set_page_config(page_title="نظام IDA للمستحقات", layout="wide", page_icon="IDA_logo_(1).ico")
 
-# 2. تصميم CSS المتطور (مع الشبكة الذكية للموبايل)
+# 2. تصميم CSS المتطور (مع حماية القائمة الجانبية للموبايل)
 st.markdown("""
     <style>
     @import url('https://fonts.googleapis.com/css2?family=Cairo:wght@400;600;800&display=swap');
     html, body, [class*="css"] { font-family: 'Cairo', sans-serif !important; direction: rtl; text-align: center; }
     .main { background-color: #f4f7f9; }
     
-    .personal-card { background: linear-gradient(135deg, #003366 0%, #005bb7 100%); color: white; padding: 25px; border-radius: 20px; margin-bottom: 25px; border: 2px solid #ffffff; width: 100%; box-shadow: 0 10px 30px rgba(0,0,0,0.2); }
-    .personal-card h1 { font-size: 30px !important; font-weight: 800; color: white !important; margin: 0; }
-    
-    /* ---- الشبكة الذكية للكروت عشان الموبايل ---- */
-    .stats-grid {
-        display: grid;
-        grid-template-columns: repeat(4, 1fr);
-        gap: 15px;
-        margin-bottom: 20px;
+    /* ------------- تظبيط القائمة الجانبية (Sidebar) ------------- */
+    [data-testid="stSidebar"] * {
+        white-space: nowrap !important; /* يمنع نزول الكلام سطرين */
+        overflow: hidden !important;
+        text-overflow: ellipsis !important; /* يحط نقط لو الكلام طويل جداً */
     }
+    .sidebar-title {
+        color: #003366; 
+        text-align: center; 
+        font-weight: 800; 
+        margin-top: -10px;
+        margin-bottom: 10px;
+        font-size: 24px; /* حجم مناسب للكمبيوتر */
+    }
+    
+    /* شبكة الكروت الذكية */
+    .stats-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 15px; margin-bottom: 20px; }
     .stat-card { padding: 15px; border-radius: 15px; color: white !important; text-align: center; box-shadow: 0 4px 10px rgba(0,0,0,0.1); height: 100%; display: flex; flex-direction: column; justify-content: center; }
     .stat-value { font-size: 24px !important; font-weight: 800; display: block; color: white !important; margin-top: 5px; }
     .stat-label { color: white !important; font-size: 15px; font-weight: 600; }
     
-    /* لما تفتح من موبايل، خلي الكروت 2 جنب بعض بدل 4 تحت بعض */
+    /* ------------ استجابة الموبايل (Media Queries) ------------ */
     @media (max-width: 768px) {
-        .stats-grid {
-            grid-template-columns: repeat(2, 1fr);
-        }
+        .stats-grid { grid-template-columns: repeat(2, 1fr); }
+        .sidebar-title { font-size: 20px !important; } /* تصغير كلمة IDA SYSTEM للموبايل */
         .personal-card h1 { font-size: 24px !important; }
     }
-    /* ------------------------------------------ */
-
+    
+    .personal-card { background: linear-gradient(135deg, #003366 0%, #005bb7 100%); color: white; padding: 25px; border-radius: 20px; margin-bottom: 25px; border: 2px solid #ffffff; width: 100%; box-shadow: 0 10px 30px rgba(0,0,0,0.2); }
+    .personal-card h1 { font-size: 30px !important; font-weight: 800; color: white !important; margin: 0; }
+    
     .custom-table-container { width: 100%; overflow-x: auto; border-radius: 15px; background: white; padding: 10px; box-shadow: 0 5px 15px rgba(0,0,0,0.05); }
     .custom-table { width: 100%; border-collapse: collapse; text-align: center; }
     .custom-table th { background-color: #003366; color: white; padding: 12px; white-space: nowrap; }
@@ -103,7 +111,8 @@ df_raw, cols = load_v40_data()
 if df_raw is not None:
     with st.sidebar:
         st.image("IDA_logo_(1).ico", width=150)
-        st.markdown("<h3 style='color: #003366; text-align:center;'>IDA SYSTEM</h3>", unsafe_allow_html=True)
+        # استخدمت الكلاس الجديد هنا عشان يصغر في الموبايل
+        st.markdown("<div class='sidebar-title'>IDA SYSTEM</div>", unsafe_allow_html=True)
         st.markdown("---")
         
         if cols['date']:
@@ -141,7 +150,6 @@ if df_raw is not None:
                     
                     s_ent, s_tax, s_ded, s_net = group[cols['ent']].sum(), (group[cols['tax']].sum()+group[cols['stamp']].sum()), group[cols['ded']].sum(), group[cols['net']].sum()
                     
-                    # ---- الكود الذكي للكروت (هيعمل شكل مربع في الموبايل وميفرش بالطول) ----
                     html_stats = f"""
                     <div class="stats-grid">
                         <div class="stat-card" style="background:#28a745;"><span class="stat-label">إجمالي المستحق</span><span class="stat-value">{s_ent:,.2f}</span></div>
@@ -151,7 +159,6 @@ if df_raw is not None:
                     </div>
                     """
                     st.markdown(html_stats, unsafe_allow_html=True)
-                    # -------------------------------------------------------------------------
                     
                     display_cols = [cols["type"], cols["desc"], cols["ent"], cols["net"]]
                     if target_month == "الكل" and cols['date']:
