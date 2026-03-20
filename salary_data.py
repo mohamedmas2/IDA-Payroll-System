@@ -5,43 +5,49 @@ import os
 import io
 import streamlit.components.v1 as components
 
-# محاولة استيراد Plotly للرسوم التفاعلية
 try:
     import plotly.express as px
     PLOTLY_AVAILABLE = True
 except ImportError:
     PLOTLY_AVAILABLE = False
 
-# 1. إعداد الصفحة واللوجو
+# 1. إعداد الصفحة
 st.set_page_config(page_title="نظام IDA للمستحقات", layout="wide", page_icon="IDA_logo_(1).ico")
 
-# 2. تصميم CSS المتطور (تنسيق الشاشة والطباعة + حماية الموبايل)
+# 2. تصميم CSS المتطور (مع الشبكة الذكية للموبايل)
 st.markdown("""
     <style>
     @import url('https://fonts.googleapis.com/css2?family=Cairo:wght@400;600;800&display=swap');
     html, body, [class*="css"] { font-family: 'Cairo', sans-serif !important; direction: rtl; text-align: center; }
     .main { background-color: #f4f7f9; }
     
-    /* ------------- حل مشكلة الكلام بالطول في الموبايل ------------- */
-    [data-testid="stSidebar"] * {
-        white-space: nowrap !important;
-    }
-    .custom-table th, .custom-table td {
-        white-space: nowrap !important;
-    }
-    /* ------------------------------------------------------------- */
+    .personal-card { background: linear-gradient(135deg, #003366 0%, #005bb7 100%); color: white; padding: 25px; border-radius: 20px; margin-bottom: 25px; border: 2px solid #ffffff; width: 100%; box-shadow: 0 10px 30px rgba(0,0,0,0.2); }
+    .personal-card h1 { font-size: 30px !important; font-weight: 800; color: white !important; margin: 0; }
     
-    .personal-card { background: linear-gradient(135deg, #003366 0%, #005bb7 100%); color: white; padding: 25px; border-radius: 20px; margin-bottom: 25px; border: 2px solid #ffffff; width: 100%; }
-    .personal-card h1 { font-size: 35px !important; font-weight: 800; color: white !important; margin: 0; }
+    /* ---- الشبكة الذكية للكروت عشان الموبايل ---- */
+    .stats-grid {
+        display: grid;
+        grid-template-columns: repeat(4, 1fr);
+        gap: 15px;
+        margin-bottom: 20px;
+    }
+    .stat-card { padding: 15px; border-radius: 15px; color: white !important; text-align: center; box-shadow: 0 4px 10px rgba(0,0,0,0.1); height: 100%; display: flex; flex-direction: column; justify-content: center; }
+    .stat-value { font-size: 24px !important; font-weight: 800; display: block; color: white !important; margin-top: 5px; }
+    .stat-label { color: white !important; font-size: 15px; font-weight: 600; }
     
-    .stat-card { padding: 20px; border-radius: 15px; color: white !important; text-align: center; margin-bottom: 15px; box-shadow: 0 4px 10px rgba(0,0,0,0.1); }
-    .stat-value { font-size: 28px !important; font-weight: 800; display: block; color: white !important; }
-    .stat-label { color: white !important; font-size: 16px; font-weight: 600; }
+    /* لما تفتح من موبايل، خلي الكروت 2 جنب بعض بدل 4 تحت بعض */
+    @media (max-width: 768px) {
+        .stats-grid {
+            grid-template-columns: repeat(2, 1fr);
+        }
+        .personal-card h1 { font-size: 24px !important; }
+    }
+    /* ------------------------------------------ */
 
     .custom-table-container { width: 100%; overflow-x: auto; border-radius: 15px; background: white; padding: 10px; box-shadow: 0 5px 15px rgba(0,0,0,0.05); }
     .custom-table { width: 100%; border-collapse: collapse; text-align: center; }
-    .custom-table th { background-color: #003366; color: white; padding: 12px; }
-    .custom-table td { padding: 10px; border: 1px solid #ddd; font-weight: 600; }
+    .custom-table th { background-color: #003366; color: white; padding: 12px; white-space: nowrap; }
+    .custom-table td { padding: 10px; border: 1px solid #ddd; font-weight: 600; white-space: nowrap; }
 
     @media print {
         @page { size: A4 portrait; margin: 10mm; }
@@ -50,8 +56,9 @@ st.markdown("""
         * { -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; }
         .personal-card { background: transparent !important; color: #003366 !important; border: none !important; text-align: center !important; }
         .personal-card h1 { color: #003366 !important; font-size: 32px !important; text-align: center !important; margin: 0 auto !important; display: block !important; }
-        .stat-card { border: 1px solid #ddd !important; margin-bottom: 5px !important; padding: 10px !important; }
-        .stat-value, .stat-label { color: black !important; }
+        .stats-grid { display: grid !important; grid-template-columns: repeat(4, 1fr) !important; gap: 5px !important; }
+        .stat-card { border: 1px solid #ddd !important; padding: 5px !important; box-shadow: none !important; }
+        .stat-value, .stat-label { color: black !important; font-size: 14px !important; }
     }
     </style>
     """, unsafe_allow_html=True)
@@ -131,13 +138,20 @@ if df_raw is not None:
             if not res.empty:
                 for name, group in res.groupby(cols['name']):
                     st.markdown(f'<div class="personal-card"><h1>{name}</h1><p>🆔 كود: {group.iloc[0][cols["code"]]} | 📄 رقم قومي: {group.iloc[0][cols["nat"]]}</p></div>', unsafe_allow_html=True)
-                    m1, m2, m3, m4 = st.columns(4)
+                    
                     s_ent, s_tax, s_ded, s_net = group[cols['ent']].sum(), (group[cols['tax']].sum()+group[cols['stamp']].sum()), group[cols['ded']].sum(), group[cols['net']].sum()
                     
-                    m1.markdown(f'<div class="stat-card" style="background:#28a745;"><span class="stat-label">إجمالي المستحق</span><span class="stat-value">{s_ent:,.2f}</span></div>', unsafe_allow_html=True)
-                    m2.markdown(f'<div class="stat-card" style="background:#ffc107;"><span class="stat-label" style="color:black">ضرائب ودمغة</span><span class="stat-value" style="color:black">{s_tax:,.2f}</span></div>', unsafe_allow_html=True)
-                    m3.markdown(f'<div class="stat-card" style="background:#dc3545;"><span class="stat-label">إجمالي استقطاع</span><span class="stat-value">{s_ded:,.2f}</span></div>', unsafe_allow_html=True)
-                    m4.markdown(f'<div class="stat-card" style="background:#007bff;"><span class="stat-label">الصافي النهائي</span><span class="stat-value">{s_net:,.2f}</span></div>', unsafe_allow_html=True)
+                    # ---- الكود الذكي للكروت (هيعمل شكل مربع في الموبايل وميفرش بالطول) ----
+                    html_stats = f"""
+                    <div class="stats-grid">
+                        <div class="stat-card" style="background:#28a745;"><span class="stat-label">إجمالي المستحق</span><span class="stat-value">{s_ent:,.2f}</span></div>
+                        <div class="stat-card" style="background:#ffc107;"><span class="stat-label" style="color:black">ضرائب ودمغة</span><span class="stat-value" style="color:black">{s_tax:,.2f}</span></div>
+                        <div class="stat-card" style="background:#dc3545;"><span class="stat-label">إجمالي استقطاع</span><span class="stat-value">{s_ded:,.2f}</span></div>
+                        <div class="stat-card" style="background:#007bff;"><span class="stat-label">الصافي النهائي</span><span class="stat-value">{s_net:,.2f}</span></div>
+                    </div>
+                    """
+                    st.markdown(html_stats, unsafe_allow_html=True)
+                    # -------------------------------------------------------------------------
                     
                     display_cols = [cols["type"], cols["desc"], cols["ent"], cols["net"]]
                     if target_month == "الكل" and cols['date']:
@@ -161,7 +175,6 @@ if df_raw is not None:
         c4.metric("💵 الصافي", f"{df[cols['net']].sum():,.0f}")
         if PLOTLY_AVAILABLE:
             with st.expander("📈 عرض رسم الميزانية"):
-                # السطر ده اللي كان فيه القوس الناقص وتم إصلاحه
                 st.plotly_chart(px.pie(names=['الصافي', 'الخصومات'], values=[df[cols['net']].sum(), df[cols['ded']].sum()], hole=0.5), use_container_width=True)
 
     # 3. تحليل الإدارات
