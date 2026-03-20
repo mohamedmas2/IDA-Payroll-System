@@ -7,154 +7,195 @@ import streamlit.components.v1 as components
 
 try:
     import plotly.express as px
-    import plotly.graph_objects as go
     PLOTLY_AVAILABLE = True
 except ImportError:
     PLOTLY_AVAILABLE = False
 
 # 1. إعداد الصفحة
-st.set_page_config(page_title="IDA Payroll System Pro", layout="wide", page_icon="IDA_logo_(1).ico")
+st.set_page_config(page_title="نظام IDA للمستحقات", layout="wide", page_icon="IDA_logo_(1).ico")
 
-# 2. تصميم CSS (تنسيق مخصص للداشبورد والجداول)
+# 2. تصميم CSS المتطور (مع حماية القائمة الجانبية للموبايل)
 st.markdown("""
     <style>
     @import url('https://fonts.googleapis.com/css2?family=Cairo:wght@400;600;800&display=swap');
     html, body, [class*="css"] { font-family: 'Cairo', sans-serif !important; direction: rtl; text-align: center; }
-    .main { background-color: #f0f2f6; }
+    .main { background-color: #f4f7f9; }
     
-    /* تنسيق الكروت العلوية في الداشبورد */
-    .kpi-card { background: white; padding: 20px; border-radius: 15px; border-right: 5px solid #003366; box-shadow: 0 4px 15px rgba(0,0,0,0.05); text-align: right; }
-    .kpi-label { color: #666; font-size: 16px; font-weight: 600; }
-    .kpi-value { color: #003366; font-size: 26px; font-weight: 800; display: block; margin-top: 5px; }
-
-    /* الكروت الملونة في الاستعلام */
+    /* ------------- تظبيط القائمة الجانبية (Sidebar) ------------- */
+    [data-testid="stSidebar"] * {
+        white-space: nowrap !important; /* يمنع نزول الكلام سطرين */
+        overflow: hidden !important;
+        text-overflow: ellipsis !important; /* يحط نقط لو الكلام طويل جداً */
+    }
+    .sidebar-title {
+        color: #003366; 
+        text-align: center; 
+        font-weight: 800; 
+        margin-top: -10px;
+        margin-bottom: 10px;
+        font-size: 24px; /* حجم مناسب للكمبيوتر */
+    }
+    
+    /* شبكة الكروت الذكية */
     .stats-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 15px; margin-bottom: 20px; }
-    .stat-card { padding: 20px; border-radius: 15px; color: white !important; text-align: center; }
-    .stat-value { font-size: 22px !important; font-weight: 800; display: block; color: white !important; }
+    .stat-card { padding: 15px; border-radius: 15px; color: white !important; text-align: center; box-shadow: 0 4px 10px rgba(0,0,0,0.1); height: 100%; display: flex; flex-direction: column; justify-content: center; }
+    .stat-value { font-size: 24px !important; font-weight: 800; display: block; color: white !important; margin-top: 5px; }
+    .stat-label { color: white !important; font-size: 15px; font-weight: 600; }
     
-    @media (max-width: 768px) { .stats-grid { grid-template-columns: repeat(2, 1fr); } }
-
-    .custom-table-container { width: 100%; overflow-x: auto; border-radius: 12px; background: white; padding: 10px; box-shadow: 0 5px 15px rgba(0,0,0,0.05); }
-    .custom-table { width: 100%; border-collapse: collapse; }
+    /* ------------ استجابة الموبايل (Media Queries) ------------ */
+    @media (max-width: 768px) {
+        .stats-grid { grid-template-columns: repeat(2, 1fr); }
+        .sidebar-title { font-size: 20px !important; } /* تصغير كلمة IDA SYSTEM للموبايل */
+        .personal-card h1 { font-size: 24px !important; }
+    }
+    
+    .personal-card { background: linear-gradient(135deg, #003366 0%, #005bb7 100%); color: white; padding: 25px; border-radius: 20px; margin-bottom: 25px; border: 2px solid #ffffff; width: 100%; box-shadow: 0 10px 30px rgba(0,0,0,0.2); }
+    .personal-card h1 { font-size: 30px !important; font-weight: 800; color: white !important; margin: 0; }
+    
+    .custom-table-container { width: 100%; overflow-x: auto; border-radius: 15px; background: white; padding: 10px; box-shadow: 0 5px 15px rgba(0,0,0,0.05); }
+    .custom-table { width: 100%; border-collapse: collapse; text-align: center; }
     .custom-table th { background-color: #003366; color: white; padding: 12px; white-space: nowrap; }
-    .custom-table td { padding: 10px; border: 1px solid #ddd; font-weight: 600; white-space: nowrap; text-align: center; }
+    .custom-table td { padding: 10px; border: 1px solid #ddd; font-weight: 600; white-space: nowrap; }
+
+    @media print {
+        @page { size: A4 portrait; margin: 10mm; }
+        section[data-testid="stSidebar"], .stDownloadButton, button, iframe, header, [data-testid="stHeader"], .stTextInput, .stSelectbox, .stHeader, h1:first-of-type, .stExpander { display: none !important; }
+        .main, .block-container { background-color: white !important; padding: 0 !important; margin: 0 !important; }
+        * { -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; }
+        .personal-card { background: transparent !important; color: #003366 !important; border: none !important; text-align: center !important; }
+        .personal-card h1 { color: #003366 !important; font-size: 32px !important; text-align: center !important; margin: 0 auto !important; display: block !important; }
+        .stats-grid { display: grid !important; grid-template-columns: repeat(4, 1fr) !important; gap: 5px !important; }
+        .stat-card { border: 1px solid #ddd !important; padding: 5px !important; box-shadow: none !important; }
+        .stat-value, .stat-label { color: black !important; font-size: 14px !important; }
+    }
     </style>
     """, unsafe_allow_html=True)
 
-# 3. محرك البيانات
+# 3. محرك البيانات المطور
 @st.cache_data
-def load_v53_data():
-    f = 'MAR2026.csv'
-    if not os.path.exists(f): return None, None, []
+def load_v40_data():
+    file_name = 'MAR2026.csv'
+    if not os.path.exists(file_name): return None, None
     try:
-        df = pd.read_csv(f, header=0, encoding='utf-8-sig', low_memory=False, dtype={'National_ID': str, 'Employee_Code': str})
+        df = pd.read_csv(file_name, header=0, encoding='utf-8-sig', low_memory=False, dtype={'National_ID': str, 'Employee_Code': str})
         df.columns = [c.strip() for c in df.columns]
-        p = {
-            'name': 'Name_Employee', 'code': 'Employee_Code', 'date': 'Date',
-            'mang': 'Mangment', 'ent': 'أجمالى الاستحقاقات', 'ded': 'الأجمالى الاستقطاعات',
-            'net': 'الصافي', 'desc': 'وصف', 'type': 'نوع الصرف'
-        }
-        cols = {k: v for k, v in p.items() if v in df.columns}
-        num_cols = df.select_dtypes(include=['number']).columns.tolist()
-        for c in num_cols:
-            df[c] = pd.to_numeric(df[c], errors='coerce').fillna(0)
         
-        fin_items = [c for c in num_cols if c not in [p['ent'], p['ded'], p['net']]]
-        df['Search_Key'] = df[p['name']].astype(str).str.replace(r'[أإآ]', 'ا', regex=True).str.replace('ى', 'ي').str.replace('ة', 'ه').str.strip()
-        return df, cols, fin_items
+        p = {
+            'name': ['name_employee', 'اسم الموظف'], 'code': ['employee_code', 'كود'], 
+            'date': ['التاريخ', 'date', 'Date'], 'mang': ['mangment', 'الإدارة'],
+            'type': ['نوع الصرف'], 'ent': ['أجمالى الاستحقاقات'], 'tax': ['ضريبة الدخل'],
+            'stamp': ['ضريبة الدمغة'], 'ded': ['الأجمالى الاستقطاعات'], 'net': ['الصافي'],
+            'nat': ['national_id', 'الرقم القومي'], 'desc': ['وصف']
+        }
+        cols = {k: next((c for c in df.columns if any(w.lower() in c.lower() for w in p[k])), None) for k in p}
+        
+        if cols['name']:
+            df[cols['name']] = df[cols['name']].astype(str).str.replace(r'\s+', ' ', regex=True).str.strip()
+            df['Search_Key'] = df[cols['name']].str.replace(r'[أإآ]', 'ا', regex=True).str.replace('ى', 'ي').str.replace('ة', 'ه')
+            
+        def clean_money(val):
+            v = str(val).replace(',', '').strip()
+            if v in ["", "-", "0", "nan"]: return 0.0
+            try: return float(v)
+            except: return 0.0
+            
+        for k in ['ent', 'tax', 'stamp', 'ded', 'net']:
+            if cols[k]: df[cols[k]] = df[cols[k]].apply(clean_money)
+            
+        return df, cols
     except Exception as e:
-        st.error(f"Error: {e}"); return None, None, []
+        st.error(f"خطأ في تحميل الملف: {e}"); return None, None
 
-df_raw, cols, fin_cols = load_v53_data()
+df_raw, cols = load_v40_data()
 
 if df_raw is not None:
     with st.sidebar:
-        st.image("IDA_logo_(1).ico", width=120)
-        st.markdown("<h3 style='text-align:center;'>IDA SYSTEM PRO</h3>", unsafe_allow_html=True)
-        dates = sorted([str(d) for d in df_raw[cols['date']].unique() if pd.notna(d)], reverse=True)
-        target_month = st.selectbox("📅 الفترة الضريبية:", ["الكل"] + dates)
-        menu = st.radio("القائمة الرئيسية:", ["🔍 الاستعلام السريع", "👤 تحليل الموظف", "📖 تحليل الحسابات", "📊 داشبورد الإدارة", "📥 التصدير"])
-
-    df_f = df_raw if target_month == "الكل" else df_raw[df_raw[cols['date']].astype(str) == target_month]
-
-    # --- 1. الاستعلام السريع ---
-    if menu == "🔍 الاستعلام السريع":
-        q = st.text_input("✍️ ابحث بالاسم أو الكود:")
-        if q:
-            q_c = re.sub(r'[أإآ]', 'ا', q).replace('ى', 'ي').replace('ة', 'ه').strip()
-            res = df_f[(df_f['Search_Key'].str.contains(q_c, na=False)) | (df_f[cols['code']] == q.strip())]
-            if not res.empty:
-                for name, gp in res.groupby(cols['name']):
-                    st.markdown(f'<div class="personal-card" style="background: #003366; color:white; padding:15px; border-radius:15px; margin-bottom:10px;"><h3>{name}</h3><p>🆔 {gp.iloc[0][cols["code"]]} | 🏢 {gp.iloc[0][cols["mang"]]}</p></div>', unsafe_allow_html=True)
-                    tax_val = gp[[c for c in gp.columns if any(w in c for w in ['ضريبة', 'دمغة'])]].sum().sum()
-                    st.markdown(f"""<div class="stats-grid">
-                        <div class="stat-card" style="background:#28a745;"><span class="stat-label">المستحق</span><span class="stat-value">{gp[cols['ent']].sum():,.2f}</span></div>
-                        <div class="stat-card" style="background:#ffc107;"><span class="stat-label" style="color:black">الضرائب</span><span class="stat-value" style="color:black">{tax_val:,.2f}</span></div>
-                        <div class="stat-card" style="background:#dc3545;"><span class="stat-label">الاستقطاع</span><span class="stat-value">{gp[cols['ded']].sum():,.2f}</span></div>
-                        <div class="stat-card" style="background:#007bff;"><span class="stat-label">الصافي</span><span class="stat-value">{gp[cols['net']].sum():,.2f}</span></div>
-                    </div>""", unsafe_allow_html=True)
-                    disp = gp[[cols['date'], cols['type'], cols['desc'], cols['ent'], cols['net']]].copy()
-                    disp.insert(0, 'م', range(1, len(disp)+1))
-                    st.markdown(f'<div class="custom-table-container">{disp.style.format({cols["ent"]: "{:,.2f}", cols["net"]: "{:,.2f}"}).to_html(index=False, classes="custom-table")}</div>', unsafe_allow_html=True)
-
-    # --- 2. تحليل الموظف (البحث الذكي) ---
-    elif menu == "👤 تحليل الموظف":
-        q_emp = st.text_input("🔍 ابحث عن موظف (بالكود أو الاسم) لمشاهدة تاريخه المالي:")
-        if q_emp:
-            q_e = re.sub(r'[أإآ]', 'ا', q_emp).replace('ى', 'ي').replace('ة', 'ه').strip()
-            e_res = df_raw[(df_raw['Search_Key'].str.contains(q_e, na=False)) | (df_raw[cols['code']] == q_emp.strip())]
-            if not e_res.empty:
-                emp_name = e_res.iloc[0][cols['name']]
-                e_data = df_raw[df_raw[cols['name']] == emp_name].sort_values(cols['date'])
-                e_fin = e_data[fin_cols].loc[:, (e_data[fin_cols] != 0).any(axis=0)]
-                st.subheader(f"تحليل بيانات: {emp_name}")
-                st.dataframe(e_fin.assign(الفترة=e_data[cols['date']]).set_index('الفترة').style.format("{:,.2f}"), use_container_width=True)
-                if PLOTLY_AVAILABLE:
-                    st.plotly_chart(px.line(e_data.groupby(cols['date'])[cols['net']].sum().reset_index(), x=cols['date'], y=cols['net'], markers=True, title="مسار الدخل"), use_container_width=True)
-
-    # --- 3. تحليل الحسابات (إضافة فواصل الآلاف) ---
-    elif menu == "📖 تحليل الحسابات":
-        st.title(f"📖 ميزانية البنود المالية - {target_month}")
-        acc_summary = df_f[fin_cols].sum().reset_index()
-        acc_summary.columns = ['الحساب المالي', 'المبلغ الإجمالي']
-        acc_summary = acc_summary[acc_summary['المبلغ الإجمالي'] > 0].sort_values('المبلغ الإجمالي', ascending=False)
-        # التنسيق بفواصل الآلاف
-        st.markdown(f'<div class="custom-table-container">{acc_summary.style.format({"المبلغ الإجمالي": "{:,.2f}"}).to_html(index=False, classes="custom-table")}</div>', unsafe_allow_html=True)
-
-    # --- 4. داشبورد الإدارة (بروفيشنال 100%) ---
-    elif menu == "📊 داشبورد الإدارة":
-        st.title(f"📊 لوحة تحكم القيادة - {target_month}")
-        # كروت علوية (KPIs)
-        k1, k2, k3, k4 = st.columns(4)
-        with k1: st.markdown(f'<div class="kpi-card"><span class="kpi-label">👤 عدد الموظفين</span><span class="kpi-value">{len(df_f[cols["name"]].unique()):,}</span></div>', unsafe_allow_html=True)
-        with k2: st.markdown(f'<div class="kpi-card"><span class="kpi-label">💰 إجمالي الميزانية</span><span class="kpi-value">{df_f[cols["ent"]].sum():,.0f}</span></div>', unsafe_allow_html=True)
-        with k3: st.markdown(f'<div class="kpi-card"><span class="kpi-label">✂️ إجمالي الاستقطاع</span><span class="kpi-value">{df_f[cols["ded"]].sum():,.0f}</span></div>', unsafe_allow_html=True)
-        with k4: st.markdown(f'<div class="kpi-card"><span class="kpi-label">💵 صافي المنصرف</span><span class="kpi-value">{df_f[cols["net"]].sum():,.0f}</span></div>', unsafe_allow_html=True)
-        
+        st.image("IDA_logo_(1).ico", width=150)
+        # استخدمت الكلاس الجديد هنا عشان يصغر في الموبايل
+        st.markdown("<div class='sidebar-title'>IDA SYSTEM</div>", unsafe_allow_html=True)
         st.markdown("---")
         
-        if PLOTLY_AVAILABLE:
-            row1_1, row1_2 = st.columns([2, 1])
-            with row1_1:
-                # ترتيب الإدارات حسب الصرف
-                mang_data = df_f.groupby(cols['mang'])[cols['net']].sum().reset_index().sort_values(cols['net'], ascending=False)
-                fig_mang = px.bar(mang_data, x=cols['mang'], y=cols['net'], color=cols['net'], title="صافي الصرف لكل إدارة", color_continuous_scale='Blues')
-                st.plotly_chart(fig_mang, use_container_width=True)
-            with row1_2:
-                # هيكل الميزانية
-                fig_pie = px.pie(names=['الصافي', 'الاستقطاعات'], values=[df_f[cols['net']].sum(), df_f[cols['ded']].sum()], hole=0.5, color_discrete_sequence=['#003366', '#dc3545'], title="تحليل الكتلة المالية")
-                st.plotly_chart(fig_pie, use_container_width=True)
+        if cols['date']:
+            unique_dates = sorted([str(d) for d in df_raw[cols['date']].unique() if pd.notna(d)], reverse=True)
+            available_months = ["الكل"] + unique_dates
+            target_month = st.selectbox("📅 اختر شهر الصرف:", available_months)
             
-            # أعلى 5 بنود صرف في المؤسسة
-            st.markdown("### 🔝 أكبر 5 بنود صرف (بدون الرواتب الأساسية)")
-            top_items = df_f[fin_cols].sum().sort_values(ascending=False).head(5).reset_index()
-            top_items.columns = ['البند', 'المبلغ']
-            fig_top = px.bar(top_items, x='المبلغ', y='البند', orientation='h', color='المبلغ', color_continuous_scale='Greens')
-            st.plotly_chart(fig_top, use_container_width=True)
+            if target_month == "الكل":
+                df = df_raw
+            else:
+                df = df_raw[df_raw[cols['date']].astype(str) == target_month]
+        else:
+            df = df_raw
+            target_month = "غير محدد"
+        
+        menu = st.radio("📌 القائمة الرئيسية:", ["🔍 استعلام الموظفين", "📊 إحصائيات عامة", "🏢 تحليل الإدارات", "📥 تصدير التقارير"])
 
-    elif menu == "📥 التصدير":
-        st.title("📥 مركز تحميل التقارير")
-        buf = io.BytesIO(); df_f.to_excel(buf, index=False)
-        st.download_button("💾 تحميل شيت الإكسيل الحالي", buf.getvalue(), f"IDA_Report_{target_month}.xlsx")
+    # 1. استعلام الموظفين
+    if menu == "🔍 استعلام الموظفين":
+        st.title(f"🔍 استعلام - {target_month}")
+        c_search1, c_search2 = st.columns([1, 2])
+        with c_search1: mode = st.selectbox("بحث بـ:", ["الاسم", "الكود"])
+        with c_search2: q = st.text_input("✍️ ابدأ الكتابة هنا:")
+        
+        if q:
+            if mode == "الاسم":
+                q_n = re.sub(r'[أإآ]', 'ا', q).replace('ى', 'ي').replace('ة', 'ه').replace('*', '.*').strip()
+                res = df[df['Search_Key'].str.contains(q_n, na=False, regex=True, flags=re.IGNORECASE)]
+            else:
+                res = df[df[cols['code']].astype(str).str.contains(q.strip(), na=False)]
+            
+            if not res.empty:
+                for name, group in res.groupby(cols['name']):
+                    st.markdown(f'<div class="personal-card"><h1>{name}</h1><p>🆔 كود: {group.iloc[0][cols["code"]]} | 📄 رقم قومي: {group.iloc[0][cols["nat"]]}</p></div>', unsafe_allow_html=True)
+                    
+                    s_ent, s_tax, s_ded, s_net = group[cols['ent']].sum(), (group[cols['tax']].sum()+group[cols['stamp']].sum()), group[cols['ded']].sum(), group[cols['net']].sum()
+                    
+                    html_stats = f"""
+                    <div class="stats-grid">
+                        <div class="stat-card" style="background:#28a745;"><span class="stat-label">إجمالي المستحق</span><span class="stat-value">{s_ent:,.2f}</span></div>
+                        <div class="stat-card" style="background:#ffc107;"><span class="stat-label" style="color:black">ضرائب ودمغة</span><span class="stat-value" style="color:black">{s_tax:,.2f}</span></div>
+                        <div class="stat-card" style="background:#dc3545;"><span class="stat-label">إجمالي استقطاع</span><span class="stat-value">{s_ded:,.2f}</span></div>
+                        <div class="stat-card" style="background:#007bff;"><span class="stat-label">الصافي النهائي</span><span class="stat-value">{s_net:,.2f}</span></div>
+                    </div>
+                    """
+                    st.markdown(html_stats, unsafe_allow_html=True)
+                    
+                    display_cols = [cols["type"], cols["desc"], cols["ent"], cols["net"]]
+                    if target_month == "الكل" and cols['date']:
+                        display_cols.insert(0, cols['date'])
+                    
+                    disp_df = group[display_cols].copy()
+                    disp_df.insert(0, 'م', range(1, len(disp_df) + 1))
+                    
+                    st.markdown(f'<div class="custom-table-container">{disp_df.to_html(index=False, classes="custom-table", escape=False)}</div>', unsafe_allow_html=True)
+                    if st.button(f"🖨️ طباعة {name}"):
+                        components.html(f"<script>window.parent.document.title='مستحقات - {name}'; window.parent.print();</script>")
+            else: st.warning(f"🔍 لا توجد نتائج.")
 
-else: st.error("❌ ملف MAR2026.csv مفقود!")
+    # 2. إحصائيات عامة
+    elif menu == "📊 إحصائيات عامة":
+        st.title(f"📊 مؤشرات - {target_month}")
+        c1, c2, c3, c4 = st.columns(4)
+        c1.metric("👥 الموظفين", f"{df['Search_Key'].nunique():,}")
+        c2.metric("💰 الميزانية", f"{df[cols['ent']].sum():,.0f}")
+        c3.metric("✂️ الخصومات", f"{df[cols['ded']].sum():,.0f}")
+        c4.metric("💵 الصافي", f"{df[cols['net']].sum():,.0f}")
+        if PLOTLY_AVAILABLE:
+            with st.expander("📈 عرض رسم الميزانية"):
+                st.plotly_chart(px.pie(names=['الصافي', 'الخصومات'], values=[df[cols['net']].sum(), df[cols['ded']].sum()], hole=0.5), use_container_width=True)
+
+    # 3. تحليل الإدارات
+    elif menu == "🏢 تحليل الإدارات":
+        st.title(f"🏢 تحليل الإدارات - {target_month}")
+        mang_df = df.groupby(cols['mang'])[[cols['ent'], cols['net']]].sum().reset_index()
+        st.dataframe(mang_df, use_container_width=True)
+
+    # 4. تصدير التقارير
+    elif menu == "📥 تصدير التقارير":
+        st.title(f"📥 تصدير بيانات - {target_month}")
+        buffer = io.BytesIO()
+        with pd.ExcelWriter(buffer, engine='xlsxwriter') as writer:
+            df.drop(columns=['Search_Key']).to_excel(writer, index=False, sheet_name='البيانات')
+        st.download_button(f"💾 تحميل ملف Excel الشامل", buffer.getvalue(), f"IDA_Report_{target_month}.xlsx")
+
+else: st.error("❌ ملف MAR2026.csv غير موجود بجانب الكود.")
