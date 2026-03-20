@@ -50,13 +50,13 @@ st.markdown("""
 # 3. محرك البيانات المطور
 @st.cache_data
 def load_v40_data():
-    # عند الرفع أونلاين، نكتفي باسم الملف فقط إذا كان بجانب الكود
     file_name = 'MAR2026.csv'
     if not os.path.exists(file_name): return None, None
     try:
         df = pd.read_csv(file_name, header=0, encoding='utf-8-sig', low_memory=False, dtype={'National_ID': str, 'Employee_Code': str})
         df.columns = [c.strip() for c in df.columns]
         
+        # رجعت لك الكود بتاعك هنا (اللي بيقرأ عمود التاريخ الصح "Date")
         p = {
             'name': ['name_employee', 'اسم الموظف'], 'code': ['employee_code', 'كود'], 
             'date': ['التاريخ', 'date', 'Date'], 'mang': ['mangment', 'الإدارة'],
@@ -89,9 +89,15 @@ if df_raw is not None:
     with st.sidebar:
         st.markdown("<h1 style='color: #003366; text-align:center;'>IDA SYSTEM</h1>", unsafe_allow_html=True)
         if cols['date']:
-            available_months = sorted(df_raw[cols['date']].unique(), reverse=True)
+            # اضافة "الكل" هنا، وهيظهر لك الـ 3 تواريخ بتوعك فقط
+            unique_dates = sorted([str(d) for d in df_raw[cols['date']].unique() if pd.notna(d)], reverse=True)
+            available_months = ["الكل"] + unique_dates
             target_month = st.selectbox("📅 اختر شهر الصرف:", available_months)
-            df = df_raw[df_raw[cols['date']] == target_month]
+            
+            if target_month == "الكل":
+                df = df_raw
+            else:
+                df = df_raw[df_raw[cols['date']].astype(str) == target_month]
         else:
             df = df_raw
             target_month = "غير محدد"
@@ -100,7 +106,7 @@ if df_raw is not None:
 
     # 1. استعلام الموظفين
     if menu == "🔍 استعلام الموظفين":
-        st.title(f"🔍 استعلام شهر {target_month}")
+        st.title(f"🔍 استعلام - {target_month}")
         c_search1, c_search2 = st.columns([1, 2])
         with c_search1: mode = st.selectbox("بحث بـ:", ["الاسم", "الكود"])
         with c_search2: q = st.text_input("✍️ ابدأ الكتابة هنا:")
@@ -123,14 +129,19 @@ if df_raw is not None:
                     m3.markdown(f'<div class="stat-card" style="background:#dc3545;"><span class="stat-label">إجمالي استقطاع</span><span class="stat-value">{s_ded:,.2f}</span></div>', unsafe_allow_html=True)
                     m4.markdown(f'<div class="stat-card" style="background:#007bff;"><span class="stat-label">الصافي النهائي</span><span class="stat-value">{s_net:,.2f}</span></div>', unsafe_allow_html=True)
                     
-                    st.markdown(f'<div class="custom-table-container">{group[[cols["type"], cols["desc"], cols["ent"], cols["net"]]].to_html(index=False, classes="custom-table", escape=False)}</div>', unsafe_allow_html=True)
+                    # لو مختار "الكل"، بنضيف عمود التاريخ في الجدول عشان الموظف يعرف البند ده تبع أي شهر
+                    display_cols = [cols["type"], cols["desc"], cols["ent"], cols["net"]]
+                    if target_month == "الكل" and cols['date']:
+                        display_cols.insert(0, cols['date'])
+                        
+                    st.markdown(f'<div class="custom-table-container">{group[display_cols].to_html(index=False, classes="custom-table", escape=False)}</div>', unsafe_allow_html=True)
                     if st.button(f"🖨️ طباعة {name}"):
                         components.html(f"<script>window.parent.document.title='مستحقات - {name}'; window.parent.print();</script>")
             else: st.warning(f"🔍 لا توجد نتائج.")
 
     # 2. إحصائيات عامة
     elif menu == "📊 إحصائيات عامة":
-        st.title(f"📊 مؤشرات شهر {target_month}")
+        st.title(f"📊 مؤشرات - {target_month}")
         c1, c2, c3, c4 = st.columns(4)
         c1.metric("👥 الموظفين", f"{df['Search_Key'].nunique():,}")
         c2.metric("💰 الميزانية", f"{df[cols['ent']].sum():,.0f}")
@@ -140,9 +151,15 @@ if df_raw is not None:
             with st.expander("📈 عرض رسم الميزانية"):
                 st.plotly_chart(px.pie(names=['الصافي', 'الخصومات'], values=[df[cols['net']].sum(), df[cols['ded']].sum()], hole=0.5), use_container_width=True)
 
-    # 3. تصدير التقارير
+    # 3. تحليل الإدارات
+    elif menu == "🏢 تحليل الإدارات":
+        st.title(f"🏢 تحليل الإدارات - {target_month}")
+        mang_df = df.groupby(cols['mang'])[[cols['ent'], cols['net']]].sum().reset_index()
+        st.dataframe(mang_df, use_container_width=True)
+
+    # 4. تصدير التقارير
     elif menu == "📥 تصدير التقارير":
-        st.title(f"📥 تصدير بيانات {target_month}")
+        st.title(f"📥 تصدير بيانات - {target_month}")
         buffer = io.BytesIO()
         with pd.ExcelWriter(buffer, engine='xlsxwriter') as writer:
             df.drop(columns=['Search_Key']).to_excel(writer, index=False, sheet_name='البيانات')
