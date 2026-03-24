@@ -47,10 +47,9 @@ st.markdown("""
     </style>
     """, unsafe_allow_html=True)
 
-# 3. محرك البيانات المطور (يقرأ كل الملفات)
+# 3. محرك البيانات المطور
 @st.cache_data
 def load_all_csv_data():
-    # البحث عن كل ملفات الـ CSV في المجلد الحالي
     all_files = glob.glob("*.csv")
     if not all_files: return None, None
     
@@ -72,6 +71,12 @@ def load_all_csv_data():
         df = pd.concat(full_df_list, ignore_index=True)
         cols = {k: next((c for c in df.columns if any(w.lower() in c.lower() for w in p[k])), None) for k in p}
         
+        # تحويل التاريخ لنوع تاريخ حقيقي لاستخراج الشهر والسنة
+        if cols['date']:
+            df[cols['date']] = pd.to_datetime(df[cols['date']], errors='coerce')
+            # إنشاء عمود "شهر_سنة" للعرض في القائمة
+            df['Month_Year'] = df[cols['date']].dt.strftime('%Y-%m') # تنسيق 2026-03
+            
         if cols['name']:
             df[cols['name']] = df[cols['name']].astype(str).str.replace(r'\s+', ' ', regex=True).str.strip()
             df['Search_Key'] = df[cols['name']].str.replace(r'[أإآ]', 'ا', regex=True).str.replace('ى', 'ي').str.replace('ة', 'ه')
@@ -98,20 +103,22 @@ if df_raw is not None:
         st.markdown("---")
         
         if cols['date']:
-            unique_dates = sorted([str(d) for d in df_raw[cols['date']].unique() if pd.notna(d)], reverse=True)
-            available_months = ["الكل"] + unique_dates
-            target_month = st.selectbox("📅 اختر شهر الصرف:", available_months)
+            # استخراج الشهور الفريدة فقط مرتبة تنازلياً
+            unique_months = sorted(df_raw['Month_Year'].dropna().unique(), reverse=True)
+            available_options = ["الكل"] + unique_months
+            target_month = st.selectbox("📅 اختر شهر الصرف:", available_options)
             
             if target_month == "الكل":
                 df = df_raw
             else:
-                df = df_raw[df_raw[cols['date']].astype(str) == target_month]
+                df = df_raw[df_raw['Month_Year'] == target_month]
         else:
             df = df_raw
             target_month = "غير محدد"
         
         menu = st.radio("📌 القائمة الرئيسية:", ["🔍 استعلام الموظفين", "📊 إحصائيات عامة", "🏢 تحليل الإدارات", "📥 تصدير التقارير"])
 
+    # 1. استعلام الموظفين
     if menu == "🔍 استعلام الموظفين":
         st.title(f"🔍 استعلام - {target_month}")
         c_search1, c_search2 = st.columns([1, 2])
@@ -131,7 +138,10 @@ if df_raw is not None:
                     emp_nat = group.iloc[0][cols['nat']]
                     st.markdown(f'<div class="personal-card"><h1>{emp_name}</h1><p>🆔 كود: {emp_code} | 📄 رقم قومي: {emp_nat}</p></div>', unsafe_allow_html=True)
                     
-                    s_ent, s_tax, s_ded, s_net = group[cols['ent']].sum(), (group[cols['tax']].sum() + group[cols['stamp']].sum()), group[cols['ded']].sum(), group[cols['net']].sum()
+                    s_ent = group[cols['ent']].sum()
+                    s_tax = group[cols['tax']].sum() + group[cols['stamp']].sum()
+                    s_ded = group[cols['ded']].sum()
+                    s_net = group[cols['net']].sum()
                     
                     st.markdown(f"""
                     <div class="stats-grid">
@@ -142,12 +152,14 @@ if df_raw is not None:
                     </div>
                     """, unsafe_allow_html=True)
                     
-                    display_cols = [cols["type"], cols["desc"], cols["ent"], cols["net"]]
-                    if target_month == "الكل" and cols['date']:
-                        display_cols.insert(0, cols['date'])
+                    # عرض التاريخ الفعلي في الجدول ليعرف الموظف متى صرفت كل دفعة
+                    display_cols = [cols['date'], cols["type"], cols["desc"], cols["ent"], cols["net"]]
                     
                     disp_df = group[display_cols].copy()
+                    # تحويل التاريخ لشكل مقروء في الجدول
+                    disp_df[cols['date']] = disp_df[cols['date']].dt.strftime('%Y-%m-%d')
                     disp_df.insert(0, 'م', range(1, len(disp_df) + 1))
+                    
                     st.markdown(f'<div class="custom-table-container">{disp_df.to_html(index=False, classes="custom-table", escape=False)}</div>', unsafe_allow_html=True)
                     
                     if st.button(f"🖨️ طباعة {emp_name}", key=f"print_{emp_code}"):
@@ -171,8 +183,11 @@ if df_raw is not None:
     elif menu == "📥 تصدير التقارير":
         st.title(f"📥 تصدير بيانات - {target_month}")
         buffer = io.BytesIO()
+        df_export = df.copy()
+        if cols['date']:
+            df_export[cols['date']] = df_export[cols['date']].dt.strftime('%Y-%m-%d')
         with pd.ExcelWriter(buffer, engine='xlsxwriter') as writer:
-            df.drop(columns=['Search_Key']).to_excel(writer, index=False, sheet_name='البيانات')
+            df_export.drop(columns=['Search_Key', 'Month_Year'], errors='ignore').to_excel(writer, index=False, sheet_name='البيانات')
         st.download_button(f"💾 تحميل ملف Excel الشامل", buffer.getvalue(), f"IDA_Report_{target_month}.xlsx")
 
 else: st.error("❌ لم يتم العثور على أي ملفات CSV في المجلد.")
