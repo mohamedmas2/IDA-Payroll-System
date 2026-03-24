@@ -10,8 +10,8 @@ USER_DB_FILE = 'users_db.csv'
 def load_users():
     if not os.path.exists(USER_DB_FILE):
         df = pd.DataFrame([
-            {"email": "admin@ida.gov.eg", "pass": "admin123", "role": "admin", "name": "المدير العام"},
-            {"email": "user1@ida.gov.eg", "pass": "user123", "role": "viewer", "name": "محلل بيانات"},
+            {"email": "admin@ida", "pass": "382452", "role": "admin", "name": "محمد عبد الفتاح"},
+            {"email": "ema@ida", "pass": "user123", "role": "viewer", "name": "Em"},
             {"email": "user2@ida.gov.eg", "pass": "pass123", "role": "searcher", "name": "موظف استعلام"}
         ])
         df.to_csv(USER_DB_FILE, index=False, encoding='utf-8-sig')
