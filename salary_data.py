@@ -23,9 +23,9 @@ st.markdown("""
     
     /* ------------- تظبيط القائمة الجانبية (Sidebar) ------------- */
     [data-testid="stSidebar"] * {
-        white-space: nowrap !important; /* يمنع نزول الكلام سطرين */
+        white-space: nowrap !important;
         overflow: hidden !important;
-        text-overflow: ellipsis !important; /* يحط نقط لو الكلام طويل جداً */
+        text-overflow: ellipsis !important;
     }
     .sidebar-title {
         color: #003366; 
@@ -33,7 +33,7 @@ st.markdown("""
         font-weight: 800; 
         margin-top: -10px;
         margin-bottom: 10px;
-        font-size: 24px; /* حجم مناسب للكمبيوتر */
+        font-size: 24px;
     }
     
     /* شبكة الكروت الذكية */
@@ -45,7 +45,7 @@ st.markdown("""
     /* ------------ استجابة الموبايل (Media Queries) ------------ */
     @media (max-width: 768px) {
         .stats-grid { grid-template-columns: repeat(2, 1fr); }
-        .sidebar-title { font-size: 20px !important; } /* تصغير كلمة IDA SYSTEM للموبايل */
+        .sidebar-title { font-size: 20px !important; }
         .personal-card h1 { font-size: 24px !important; }
     }
     
@@ -111,7 +111,6 @@ df_raw, cols = load_v40_data()
 if df_raw is not None:
     with st.sidebar:
         st.image("IDA_logo_(1).ico", width=150)
-        # استخدمت الكلاس الجديد هنا عشان يصغر في الموبايل
         st.markdown("<div class='sidebar-title'>IDA SYSTEM</div>", unsafe_allow_html=True)
         st.markdown("---")
         
@@ -130,7 +129,7 @@ if df_raw is not None:
         
         menu = st.radio("📌 القائمة الرئيسية:", ["🔍 استعلام الموظفين", "📊 إحصائيات عامة", "🏢 تحليل الإدارات", "📥 تصدير التقارير"])
 
-    # 1. استعلام الموظفين
+    # 1. استعلام الموظفين (تم التعديل هنا لدمج البيانات)
     if menu == "🔍 استعلام الموظفين":
         st.title(f"🔍 استعلام - {target_month}")
         c_search1, c_search2 = st.columns([1, 2])
@@ -145,10 +144,19 @@ if df_raw is not None:
                 res = df[df[cols['code']].astype(str).str.contains(q.strip(), na=False)]
             
             if not res.empty:
-                for name, group in res.groupby(cols['name']):
-                    st.markdown(f'<div class="personal-card"><h1>{name}</h1><p>🆔 كود: {group.iloc[0][cols["code"]]} | 📄 رقم قومي: {group.iloc[0][cols["nat"]]}</p></div>', unsafe_allow_html=True)
+                # التجميع بالكود لضمان عدم تكرار الموظف في العرض
+                for emp_code, group in res.groupby(cols['code']):
+                    emp_name = group.iloc[0][cols['name']]
+                    emp_nat = group.iloc[0][cols['nat']]
                     
-                    s_ent, s_tax, s_ded, s_net = group[cols['ent']].sum(), (group[cols['tax']].sum()+group[cols['stamp']].sum()), group[cols['ded']].sum(), group[cols['net']].sum()
+                    # عرض كارت التعريف مرة واحدة
+                    st.markdown(f'<div class="personal-card"><h1>{emp_name}</h1><p>🆔 كود: {emp_code} | 📄 رقم قومي: {emp_nat}</p></div>', unsafe_allow_html=True)
+                    
+                    # حساب الإجماليات لكل سجلات الموظف
+                    s_ent = group[cols['ent']].sum()
+                    s_tax = group[cols['tax']].sum() + group[cols['stamp']].sum()
+                    s_ded = group[cols['ded']].sum()
+                    s_net = group[cols['net']].sum()
                     
                     html_stats = f"""
                     <div class="stats-grid">
@@ -160,6 +168,7 @@ if df_raw is not None:
                     """
                     st.markdown(html_stats, unsafe_allow_html=True)
                     
+                    # تحضير الجدول بكل السطور
                     display_cols = [cols["type"], cols["desc"], cols["ent"], cols["net"]]
                     if target_month == "الكل" and cols['date']:
                         display_cols.insert(0, cols['date'])
@@ -168,9 +177,14 @@ if df_raw is not None:
                     disp_df.insert(0, 'م', range(1, len(disp_df) + 1))
                     
                     st.markdown(f'<div class="custom-table-container">{disp_df.to_html(index=False, classes="custom-table", escape=False)}</div>', unsafe_allow_html=True)
-                    if st.button(f"🖨️ طباعة {name}"):
-                        components.html(f"<script>window.parent.document.title='مستحقات - {name}'; window.parent.print();</script>")
-            else: st.warning(f"🔍 لا توجد نتائج.")
+                    
+                    # زر الطباعة فريد لكل موظف
+                    if st.button(f"🖨️ طباعة {emp_name}", key=f"print_{emp_code}"):
+                        components.html(f"<script>window.parent.document.title='مستحقات - {emp_name}'; window.parent.print();</script>")
+                    
+                    st.markdown("---")
+            else: 
+                st.warning(f"🔍 لا توجد نتائج.")
 
     # 2. إحصائيات عامة
     elif menu == "📊 إحصائيات عامة":
