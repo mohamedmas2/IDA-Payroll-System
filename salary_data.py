@@ -15,43 +15,25 @@ except ImportError:
 # 1. إعداد الصفحة
 st.set_page_config(page_title="نظام IDA للمستحقات", layout="wide", page_icon="IDA_logo_(1).ico")
 
-# 2. تصميم CSS (إخفاء أدوات Streamlit وتحسين المظهر)
+# 2. تصميم CSS
 st.markdown("""
     <style>
     @import url('https://fonts.googleapis.com/css2?family=Cairo:wght@400;600;800&display=swap');
     html, body, [class*="css"] { font-family: 'Cairo', sans-serif !important; direction: rtl; text-align: center; }
-    
-    /* إخفاء أدوات Streamlit للمستخدم النهائي */
-    header {visibility: hidden;}
-    #MainMenu {visibility: hidden;}
-    footer {visibility: hidden;}
-    .stAppDeployButton {display:none !important;}
-    [data-testid="stHeader"] {display:none !important;}
-    .block-container {padding-top: 2rem !important;}
-
     .main { background-color: #f4f7f9; }
     [data-testid="stSidebar"] * { white-space: nowrap !important; overflow: hidden !important; text-overflow: ellipsis !important; }
     .sidebar-title { color: #003366; text-align: center; font-weight: 800; margin-top: -10px; margin-bottom: 10px; font-size: 24px; }
-    
     .stats-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 15px; margin-bottom: 20px; }
     .stat-card { padding: 15px; border-radius: 15px; color: white !important; text-align: center; box-shadow: 0 4px 10px rgba(0,0,0,0.1); height: 100%; display: flex; flex-direction: column; justify-content: center; }
     .stat-value { font-size: 24px !important; font-weight: 800; display: block; color: white !important; margin-top: 5px; }
     .stat-label { color: white !important; font-size: 15px; font-weight: 600; }
-    
-    @media (max-width: 768px) { 
-        .stats-grid { grid-template-columns: repeat(2, 1fr); } 
-        .sidebar-title { font-size: 20px !important; } 
-        .personal-card h1 { font-size: 24px !important; } 
-    }
-    
+    @media (max-width: 768px) { .stats-grid { grid-template-columns: repeat(2, 1fr); } .sidebar-title { font-size: 20px !important; } .personal-card h1 { font-size: 24px !important; } }
     .personal-card { background: linear-gradient(135deg, #003366 0%, #005bb7 100%); color: white; padding: 25px; border-radius: 20px; margin-bottom: 25px; border: 2px solid #ffffff; width: 100%; box-shadow: 0 10px 30px rgba(0,0,0,0.2); }
     .personal-card h1 { font-size: 30px !important; font-weight: 800; color: white !important; margin: 0; }
-    
     .custom-table-container { width: 100%; overflow-x: auto; border-radius: 15px; background: white; padding: 10px; box-shadow: 0 5px 15px rgba(0,0,0,0.05); }
     .custom-table { width: 100%; border-collapse: collapse; text-align: center; }
     .custom-table th { background-color: #003366; color: white; padding: 12px; white-space: nowrap; }
     .custom-table td { padding: 10px; border: 1px solid #ddd; font-weight: 600; white-space: nowrap; }
-    
     @media print {
         @page { size: A4 portrait; margin: 10mm; }
         section[data-testid="stSidebar"], .stDownloadButton, button, iframe, header, [data-testid="stHeader"], .stTextInput, .stSelectbox, .stHeader, h1:first-of-type, .stExpander { display: none !important; }
@@ -63,7 +45,7 @@ st.markdown("""
         .stat-value, .stat-label { color: black !important; font-size: 14px !important; }
     }
     </style>
-""", unsafe_allow_html=True)
+    """, unsafe_allow_html=True)
 
 # 3. محرك البيانات المطور
 @st.cache_data
@@ -89,9 +71,11 @@ def load_all_csv_data():
         df = pd.concat(full_df_list, ignore_index=True)
         cols = {k: next((c for c in df.columns if any(w.lower() in c.lower() for w in p[k])), None) for k in p}
         
+        # تحويل التاريخ لنوع تاريخ حقيقي لاستخراج الشهر والسنة
         if cols['date']:
             df[cols['date']] = pd.to_datetime(df[cols['date']], errors='coerce')
-            df['Month_Year'] = df[cols['date']].dt.strftime('%Y-%m')
+            # إنشاء عمود "شهر_سنة" للعرض في القائمة
+            df['Month_Year'] = df[cols['date']].dt.strftime('%Y-%m') # تنسيق 2026-03
             
         if cols['name']:
             df[cols['name']] = df[cols['name']].astype(str).str.replace(r'\s+', ' ', regex=True).str.strip()
@@ -119,15 +103,22 @@ if df_raw is not None:
         st.markdown("---")
         
         if cols['date']:
+            # استخراج الشهور الفريدة فقط مرتبة تنازلياً
             unique_months = sorted(df_raw['Month_Year'].dropna().unique(), reverse=True)
             available_options = ["الكل"] + unique_months
             target_month = st.selectbox("📅 اختر شهر الصرف:", available_options)
-            df = df_raw if target_month == "الكل" else df_raw[df_raw['Month_Year'] == target_month]
+            
+            if target_month == "الكل":
+                df = df_raw
+            else:
+                df = df_raw[df_raw['Month_Year'] == target_month]
         else:
-            df, target_month = df_raw, "غير محدد"
+            df = df_raw
+            target_month = "غير محدد"
         
         menu = st.radio("📌 القائمة الرئيسية:", ["🔍 استعلام الموظفين", "📊 إحصائيات عامة", "🏢 تحليل الإدارات", "📥 تصدير التقارير"])
 
+    # 1. استعلام الموظفين
     if menu == "🔍 استعلام الموظفين":
         st.title(f"🔍 استعلام - {target_month}")
         c_search1, c_search2 = st.columns([1, 2])
@@ -147,7 +138,10 @@ if df_raw is not None:
                     emp_nat = group.iloc[0][cols['nat']]
                     st.markdown(f'<div class="personal-card"><h1>{emp_name}</h1><p>🆔 كود: {emp_code} | 📄 رقم قومي: {emp_nat}</p></div>', unsafe_allow_html=True)
                     
-                    s_ent, s_tax, s_ded, s_net = group[cols['ent']].sum(), (group[cols['tax']].sum() + group[cols['stamp']].sum()), group[cols['ded']].sum(), group[cols['net']].sum()
+                    s_ent = group[cols['ent']].sum()
+                    s_tax = group[cols['tax']].sum() + group[cols['stamp']].sum()
+                    s_ded = group[cols['ded']].sum()
+                    s_net = group[cols['net']].sum()
                     
                     st.markdown(f"""
                     <div class="stats-grid">
@@ -158,14 +152,42 @@ if df_raw is not None:
                     </div>
                     """, unsafe_allow_html=True)
                     
+                    # عرض التاريخ الفعلي في الجدول ليعرف الموظف متى صرفت كل دفعة
                     display_cols = [cols['date'], cols["type"], cols["desc"], cols["ent"], cols["net"]]
+                    
                     disp_df = group[display_cols].copy()
-                    if cols['date']: disp_df[cols['date']] = disp_df[cols['date']].dt.strftime('%Y-%m-%d')
+                    # تحويل التاريخ لشكل مقروء في الجدول
+                    disp_df[cols['date']] = disp_df[cols['date']].dt.strftime('%Y-%m-%d')
                     disp_df.insert(0, 'م', range(1, len(disp_df) + 1))
                     
                     st.markdown(f'<div class="custom-table-container">{disp_df.to_html(index=False, classes="custom-table", escape=False)}</div>', unsafe_allow_html=True)
+                    
                     if st.button(f"🖨️ طباعة {emp_name}", key=f"print_{emp_code}"):
                         components.html(f"<script>window.parent.document.title='مستحقات - {emp_name}'; window.parent.print();</script>")
                     st.markdown("---")
             else: st.warning(f"🔍 لا توجد نتائج.")
-    # باقي القوائم (إحصائيات، تحليل، تصدير) تكمل هنا بنفس النمط...
+
+    elif menu == "📊 إحصائيات عامة":
+        st.title(f"📊 مؤشرات - {target_month}")
+        c1, c2, c3, c4 = st.columns(4)
+        c1.metric("👥 الموظفين", f"{df['Search_Key'].nunique():,}")
+        c2.metric("💰 الميزانية", f"{df[cols['ent']].sum():,.0f}")
+        c3.metric("✂️ الخصومات", f"{df[cols['ded']].sum():,.0f}")
+        c4.metric("💵 الصافي", f"{df[cols['net']].sum():,.0f}")
+
+    elif menu == "🏢 تحليل الإدارات":
+        st.title(f"🏢 تحليل الإدارات - {target_month}")
+        mang_df = df.groupby(cols['mang'])[[cols['ent'], cols['net']]].sum().reset_index()
+        st.dataframe(mang_df, use_container_width=True)
+
+    elif menu == "📥 تصدير التقارير":
+        st.title(f"📥 تصدير بيانات - {target_month}")
+        buffer = io.BytesIO()
+        df_export = df.copy()
+        if cols['date']:
+            df_export[cols['date']] = df_export[cols['date']].dt.strftime('%Y-%m-%d')
+        with pd.ExcelWriter(buffer, engine='xlsxwriter') as writer:
+            df_export.drop(columns=['Search_Key', 'Month_Year'], errors='ignore').to_excel(writer, index=False, sheet_name='البيانات')
+        st.download_button(f"💾 تحميل ملف Excel الشامل", buffer.getvalue(), f"IDA_Report_{target_month}.xlsx")
+
+else: st.error("❌ لم يتم العثور على أي ملفات CSV في المجلد.")
